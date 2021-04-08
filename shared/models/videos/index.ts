@@ -1,6 +1,7 @@
 export * from './blacklist'
 export * from './caption'
 export * from './channel'
+export * from './live'
 export * from './import'
 export * from './playlist'
 export * from './rate'
@@ -19,6 +20,8 @@ export * from './video-create.model'
 export * from './video-file-metadata'
 export * from './video-file.model'
 
+export * from './live/live-video.model'
+
 export * from './video-privacy.enum'
 export * from './video-query.type'
 export * from './video-rate.type'
@@ -31,6 +34,7 @@ export * from './video-state.enum'
 export * from './video-streaming-playlist.model'
 export * from './video-streaming-playlist.type'
 
+export * from './video-transcoding.model'
 export * from './video-transcoding-fps.model'
 
 export * from './video-update.model'

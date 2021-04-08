@@ -20,15 +20,20 @@ export class VideoCommentsComponent implements OnInit, OnChanges, OnDestroy {
 
   comments: VideoComment[] = []
   highlightedThread: VideoComment
+
   sort = '-createdAt'
+
   componentPagination: ComponentPagination = {
     currentPage: 1,
     itemsPerPage: 10,
     totalItems: null
   }
+  totalNotDeletedComments: number
+
   inReplyToCommentId: number
   commentReplyRedraftValue: string
   commentThreadRedraftValue: string
+
   threadComments: { [ id: number ]: VideoCommentThreadTree } = {}
   threadLoading: { [ id: number ]: boolean } = {}
 
@@ -122,6 +127,7 @@ export class VideoCommentsComponent implements OnInit, OnChanges, OnDestroy {
       res => {
         this.comments = this.comments.concat(res.data)
         this.componentPagination.totalItems = res.total
+        this.totalNotDeletedComments = res.totalNotDeletedComments
 
         this.onDataSubject.next(res.data)
         this.hooks.runAction('action:video-watch.video-threads.loaded', 'video-watch', { data: this.componentPagination })
@@ -199,10 +205,13 @@ export class VideoCommentsComponent implements OnInit, OnChanges, OnDestroy {
     if (confirm) {
       this.inReplyToCommentId = commentToRedraft.inReplyToCommentId
 
+      // Restore line feed for editing
+      const commentToRedraftText = commentToRedraft.text.replace(/<br.?\/?>/g, '\r\n')
+
       if (commentToRedraft.threadId === commentToRedraft.id) {
-        this.commentThreadRedraftValue = commentToRedraft.text
+        this.commentThreadRedraftValue = commentToRedraftText
       } else {
-        this.commentReplyRedraftValue = commentToRedraft.text
+        this.commentReplyRedraftValue = commentToRedraftText
       }
 
     }
@@ -236,6 +245,7 @@ export class VideoCommentsComponent implements OnInit, OnChanges, OnDestroy {
       this.inReplyToCommentId = undefined
       this.componentPagination.currentPage = 1
       this.componentPagination.totalItems = null
+      this.totalNotDeletedComments = null
 
       this.syndicationItems = this.videoCommentService.getVideoCommentsFeeds(this.video.uuid)
       this.loadMoreThreads()

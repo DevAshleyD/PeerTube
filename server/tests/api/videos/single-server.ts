@@ -157,6 +157,8 @@ describe('Test a single server', function () {
   })
 
   it('Should upload the video', async function () {
+    this.timeout(10000)
+
     const videoAttributes = {
       name: 'my super name',
       category: 2,
@@ -347,6 +349,22 @@ describe('Test a single server', function () {
 
   it('Should list and sort by trending in descending order', async function () {
     const res = await getVideosListPagination(server.url, 0, 2, '-trending')
+
+    const videos = res.body.data
+    expect(res.body.total).to.equal(6)
+    expect(videos.length).to.equal(2)
+  })
+
+  it('Should list and sort by hotness in descending order', async function () {
+    const res = await getVideosListPagination(server.url, 0, 2, '-hot')
+
+    const videos = res.body.data
+    expect(res.body.total).to.equal(6)
+    expect(videos.length).to.equal(2)
+  })
+
+  it('Should list and sort by best in descending order', async function () {
+    const res = await getVideosListPagination(server.url, 0, 2, '-best')
 
     const videos = res.body.data
     expect(res.body.total).to.equal(6)

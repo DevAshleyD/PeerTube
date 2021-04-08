@@ -10,6 +10,7 @@ import { auditLoggerFactory, CustomConfigAuditView, getAuditIdFromRes } from '..
 import { objectConverter } from '../../helpers/core-utils'
 import { isSignupAllowed, isSignupAllowedForCurrentIP } from '../../helpers/signup'
 import { getServerCommit } from '../../helpers/utils'
+import { getEnabledResolutions } from '../../lib/video-transcoding'
 import { CONFIG, isEmailEnabled, reloadConfig } from '../../initializers/config'
 import { CONSTRAINTS_FIELDS, DEFAULT_THEME_NAME, PEERTUBE_VERSION } from '../../initializers/constants'
 import { ClientHtml } from '../../lib/client-html'
@@ -17,6 +18,7 @@ import { PluginManager } from '../../lib/plugins/plugin-manager'
 import { getThemeOrDefault } from '../../lib/plugins/theme-utils'
 import { asyncMiddleware, authenticate, ensureUserHasRight } from '../../middlewares'
 import { customConfigUpdateValidator } from '../../middlewares/validators/config'
+import { VideoTranscodingProfilesManager } from '@server/lib/video-transcoding-profiles'
 
 const configRouter = express.Router()
 
@@ -64,9 +66,9 @@ async function getConfig (req: express.Request, res: express.Response) {
     instance: {
       name: CONFIG.INSTANCE.NAME,
       shortDescription: CONFIG.INSTANCE.SHORT_DESCRIPTION,
-      defaultClientRoute: CONFIG.INSTANCE.DEFAULT_CLIENT_ROUTE,
       isNSFW: CONFIG.INSTANCE.IS_NSFW,
       defaultNSFWPolicy: CONFIG.INSTANCE.DEFAULT_NSFW_POLICY,
+      defaultClientRoute: CONFIG.INSTANCE.DEFAULT_CLIENT_ROUTE,
       customizations: {
         javascript: CONFIG.INSTANCE.CUSTOMIZATIONS.JAVASCRIPT,
         css: CONFIG.INSTANCE.CUSTOMIZATIONS.CSS
@@ -113,7 +115,28 @@ async function getConfig (req: express.Request, res: express.Response) {
       webtorrent: {
         enabled: CONFIG.TRANSCODING.WEBTORRENT.ENABLED
       },
-      enabledResolutions: getEnabledResolutions()
+      enabledResolutions: getEnabledResolutions('vod'),
+      profile: CONFIG.TRANSCODING.PROFILE,
+      availableProfiles: VideoTranscodingProfilesManager.Instance.getAvailableProfiles('vod')
+    },
+    live: {
+      enabled: CONFIG.LIVE.ENABLED,
+
+      allowReplay: CONFIG.LIVE.ALLOW_REPLAY,
+      maxDuration: CONFIG.LIVE.MAX_DURATION,
+      maxInstanceLives: CONFIG.LIVE.MAX_INSTANCE_LIVES,
+      maxUserLives: CONFIG.LIVE.MAX_USER_LIVES,
+
+      transcoding: {
+        enabled: CONFIG.LIVE.TRANSCODING.ENABLED,
+        enabledResolutions: getEnabledResolutions('live'),
+        profile: CONFIG.LIVE.TRANSCODING.PROFILE,
+        availableProfiles: VideoTranscodingProfilesManager.Instance.getAvailableProfiles('live')
+      },
+
+      rtmp: {
+        port: CONFIG.LIVE.RTMP.PORT
+      }
     },
     import: {
       videos: {
@@ -135,9 +158,17 @@ async function getConfig (req: express.Request, res: express.Response) {
     avatar: {
       file: {
         size: {
-          max: CONSTRAINTS_FIELDS.ACTORS.AVATAR.FILE_SIZE.max
+          max: CONSTRAINTS_FIELDS.ACTORS.IMAGE.FILE_SIZE.max
         },
-        extensions: CONSTRAINTS_FIELDS.ACTORS.AVATAR.EXTNAME
+        extensions: CONSTRAINTS_FIELDS.ACTORS.IMAGE.EXTNAME
+      }
+    },
+    banner: {
+      file: {
+        size: {
+          max: CONSTRAINTS_FIELDS.ACTORS.IMAGE.FILE_SIZE.max
+        },
+        extensions: CONSTRAINTS_FIELDS.ACTORS.IMAGE.EXTNAME
       }
     },
     video: {
@@ -165,7 +196,11 @@ async function getConfig (req: express.Request, res: express.Response) {
     },
     trending: {
       videos: {
-        intervalDays: CONFIG.TRENDING.VIDEOS.INTERVAL_DAYS
+        intervalDays: CONFIG.TRENDING.VIDEOS.INTERVAL_DAYS,
+        algorithms: {
+          enabled: CONFIG.TRENDING.VIDEOS.ALGORITHMS.ENABLED,
+          default: CONFIG.TRENDING.VIDEOS.ALGORITHMS.DEFAULT
+        }
       }
     },
     tracker: {
@@ -232,7 +267,7 @@ async function deleteCustomConfig (req: express.Request, res: express.Response) 
 
   const data = customConfig()
 
-  return res.json(data).end()
+  return res.json(data)
 }
 
 async function updateCustomConfig (req: express.Request, res: express.Response) {
@@ -254,7 +289,7 @@ async function updateCustomConfig (req: express.Request, res: express.Response) 
     oldCustomConfigAuditKeys
   )
 
-  return res.json(data).end()
+  return res.json(data)
 }
 
 function getRegisteredThemes () {
@@ -266,12 +301,6 @@ function getRegisteredThemes () {
                         css: t.css,
                         clientScripts: t.clientScripts
                       }))
-}
-
-function getEnabledResolutions () {
-  return Object.keys(CONFIG.TRANSCODING.RESOLUTIONS)
-               .filter(key => CONFIG.TRANSCODING.ENABLED && CONFIG.TRANSCODING.RESOLUTIONS[key] === true)
-               .map(r => parseInt(r, 10))
 }
 
 function getRegisteredPlugins () {
@@ -324,7 +353,6 @@ function getExternalAuthsPlugins () {
 
 export {
   configRouter,
-  getEnabledResolutions,
   getRegisteredPlugins,
   getRegisteredThemes
 }
@@ -351,8 +379,10 @@ function customConfig (): CustomConfig {
       categories: CONFIG.INSTANCE.CATEGORIES,
 
       isNSFW: CONFIG.INSTANCE.IS_NSFW,
-      defaultClientRoute: CONFIG.INSTANCE.DEFAULT_CLIENT_ROUTE,
       defaultNSFWPolicy: CONFIG.INSTANCE.DEFAULT_NSFW_POLICY,
+
+      defaultClientRoute: CONFIG.INSTANCE.DEFAULT_CLIENT_ROUTE,
+
       customizations: {
         css: CONFIG.INSTANCE.CUSTOMIZATIONS.CSS,
         javascript: CONFIG.INSTANCE.CUSTOMIZATIONS.JAVASCRIPT
@@ -373,6 +403,9 @@ function customConfig (): CustomConfig {
       },
       captions: {
         size: CONFIG.CACHE.VIDEO_CAPTIONS.SIZE
+      },
+      torrents: {
+        size: CONFIG.CACHE.TORRENTS.SIZE
       }
     },
     signup: {
@@ -395,6 +428,8 @@ function customConfig (): CustomConfig {
       allowAdditionalExtensions: CONFIG.TRANSCODING.ALLOW_ADDITIONAL_EXTENSIONS,
       allowAudioFiles: CONFIG.TRANSCODING.ALLOW_AUDIO_FILES,
       threads: CONFIG.TRANSCODING.THREADS,
+      concurrency: CONFIG.TRANSCODING.CONCURRENCY,
+      profile: CONFIG.TRANSCODING.PROFILE,
       resolutions: {
         '0p': CONFIG.TRANSCODING.RESOLUTIONS['0p'],
         '240p': CONFIG.TRANSCODING.RESOLUTIONS['240p'],
@@ -402,6 +437,7 @@ function customConfig (): CustomConfig {
         '480p': CONFIG.TRANSCODING.RESOLUTIONS['480p'],
         '720p': CONFIG.TRANSCODING.RESOLUTIONS['720p'],
         '1080p': CONFIG.TRANSCODING.RESOLUTIONS['1080p'],
+        '1440p': CONFIG.TRANSCODING.RESOLUTIONS['1440p'],
         '2160p': CONFIG.TRANSCODING.RESOLUTIONS['2160p']
       },
       webtorrent: {
@@ -411,13 +447,43 @@ function customConfig (): CustomConfig {
         enabled: CONFIG.TRANSCODING.HLS.ENABLED
       }
     },
+    live: {
+      enabled: CONFIG.LIVE.ENABLED,
+      allowReplay: CONFIG.LIVE.ALLOW_REPLAY,
+      maxDuration: CONFIG.LIVE.MAX_DURATION,
+      maxInstanceLives: CONFIG.LIVE.MAX_INSTANCE_LIVES,
+      maxUserLives: CONFIG.LIVE.MAX_USER_LIVES,
+      transcoding: {
+        enabled: CONFIG.LIVE.TRANSCODING.ENABLED,
+        threads: CONFIG.LIVE.TRANSCODING.THREADS,
+        profile: CONFIG.LIVE.TRANSCODING.PROFILE,
+        resolutions: {
+          '240p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['240p'],
+          '360p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['360p'],
+          '480p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['480p'],
+          '720p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['720p'],
+          '1080p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['1080p'],
+          '1440p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['1440p'],
+          '2160p': CONFIG.LIVE.TRANSCODING.RESOLUTIONS['2160p']
+        }
+      }
+    },
     import: {
       videos: {
+        concurrency: CONFIG.IMPORT.VIDEOS.CONCURRENCY,
         http: {
           enabled: CONFIG.IMPORT.VIDEOS.HTTP.ENABLED
         },
         torrent: {
           enabled: CONFIG.IMPORT.VIDEOS.TORRENT.ENABLED
+        }
+      }
+    },
+    trending: {
+      videos: {
+        algorithms: {
+          enabled: CONFIG.TRENDING.VIDEOS.ALGORITHMS.ENABLED,
+          default: CONFIG.TRENDING.VIDEOS.ALGORITHMS.DEFAULT
         }
       }
     },

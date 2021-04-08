@@ -32,7 +32,7 @@
     color: pvar(--inputPlaceholderColor);
   }
 
-  @include large-screen-ratio($selector: 'div, ::ng-deep iframe') {
+  @include block-ratio($selector: 'div, ::ng-deep iframe') {
     width: 100% !important;
     height: 100% !important;
     left: 0;
@@ -105,7 +105,6 @@ my-action-dropdown.show {
     background: transparent;
     display: inline-flex;
     justify-content: center;
-    align-items: center;
     position: relative;
 
     img {

@@ -24,13 +24,17 @@ export const getServerActor = memoizee(async function () {
   tableName: 'application',
   timestamps: false
 })
-export class ApplicationModel extends Model<ApplicationModel> {
+export class ApplicationModel extends Model {
 
   @AllowNull(false)
   @Default(0)
   @IsInt
   @Column
   migrationVersion: number
+
+  @AllowNull(true)
+  @Column
+  latestPeerTubeVersion: string
 
   @HasOne(() => AccountModel, {
     foreignKey: {

@@ -1,4 +1,3 @@
-import * as Bluebird from 'bluebird'
 import { Router } from 'express'
 import { Logger } from 'winston'
 import { ActorModel } from '@server/models/activitypub/actor'
@@ -6,6 +5,7 @@ import {
   PluginPlaylistPrivacyManager,
   PluginSettingsManager,
   PluginStorageManager,
+  PluginTranscodingManager,
   PluginVideoCategoryManager,
   PluginVideoLanguageManager,
   PluginVideoLicenceManager,
@@ -29,7 +29,8 @@ export type PeerTubeHelpers = {
   }
 
   videos: {
-    loadByUrl: (url: string) => Bluebird<MVideoThumbnail>
+    loadByUrl: (url: string) => Promise<MVideoThumbnail>
+    loadByIdOrUUID: (id: number | string) => Promise<MVideoThumbnail>
 
     removeVideo: (videoId: number) => Promise<void>
   }
@@ -68,6 +69,8 @@ export type RegisterServerOptions = {
 
   videoPrivacyManager: PluginVideoPrivacyManager
   playlistPrivacyManager: PluginPlaylistPrivacyManager
+
+  transcodingManager: PluginTranscodingManager
 
   registerIdAndPassAuth: (options: RegisterServerAuthPassOptions) => void
   registerExternalAuth: (options: RegisterServerAuthExternalOptions) => RegisterServerAuthExternalResult

@@ -36,9 +36,9 @@ export class ServerService {
       name: 'PeerTube',
       shortDescription: 'PeerTube, a federated (ActivityPub) video streaming platform  ' +
                         'using P2P (BitTorrent) directly in the web browser with WebTorrent and Angular.',
-      defaultClientRoute: '',
       isNSFW: false,
       defaultNSFWPolicy: 'do_not_list' as 'do_not_list',
+      defaultClientRoute: '',
       customizations: {
         javascript: '',
         css: ''
@@ -66,6 +66,8 @@ export class ServerService {
       requiresEmailVerification: false
     },
     transcoding: {
+      profile: 'default',
+      availableProfiles: [ 'default' ],
       enabledResolutions: [],
       hls: {
         enabled: false
@@ -74,7 +76,29 @@ export class ServerService {
         enabled: true
       }
     },
+    live: {
+      enabled: false,
+      allowReplay: true,
+      maxDuration: null,
+      maxInstanceLives: -1,
+      maxUserLives: -1,
+      transcoding: {
+        enabled: false,
+        profile: 'default',
+        availableProfiles: [ 'default' ],
+        enabledResolutions: []
+      },
+      rtmp: {
+        port: 1935
+      }
+    },
     avatar: {
+      file: {
+        size: { max: 0 },
+        extensions: []
+      }
+    },
+    banner: {
       file: {
         size: { max: 0 },
         extensions: []
@@ -111,7 +135,11 @@ export class ServerService {
     },
     trending: {
       videos: {
-        intervalDays: 0
+        intervalDays: 0,
+        algorithms: {
+          enabled: [ 'best', 'hot', 'most-viewed', 'most-liked' ],
+          default: 'most-viewed'
+        }
       }
     },
     autoBlacklist: {

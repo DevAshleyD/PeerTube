@@ -4,7 +4,7 @@ import { join } from 'path'
 
 export class VideoUploadPage {
   async navigateTo () {
-    await element(by.css('.header .upload-button')).click()
+    await element(by.css('.header .publish-button')).click()
 
     return browser.wait(browser.ExpectedConditions.visibilityOf(element(by.css('.upload-video-container'))))
   }
@@ -40,6 +40,6 @@ export class VideoUploadPage {
   }
 
   private getSecondStepSubmitButton () {
-    return element(by.css('.submit-button:not(.disabled)'))
+    return element(by.css('.submit-container my-button'))
   }
 }

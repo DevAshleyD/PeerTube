@@ -1,3 +1,4 @@
+import { Transaction } from 'sequelize'
 import {
   AfterDestroy,
   AfterUpdate,
@@ -11,15 +12,14 @@ import {
   Table,
   UpdatedAt
 } from 'sequelize-typescript'
-import { logger } from '../../helpers/logger'
-import { UserModel } from '../account/user'
-import { OAuthClientModel } from './oauth-client'
-import { Transaction } from 'sequelize'
-import { AccountModel } from '../account/account'
-import { ActorModel } from '../activitypub/actor'
-import { clearCacheByToken } from '../../lib/oauth-model'
-import * as Bluebird from 'bluebird'
+import { TokensCache } from '@server/lib/auth/tokens-cache'
+import { MUserAccountId } from '@server/types/models'
 import { MOAuthTokenUser } from '@server/types/models/oauth/oauth-token'
+import { logger } from '../../helpers/logger'
+import { AccountModel } from '../account/account'
+import { UserModel } from '../account/user'
+import { ActorModel } from '../activitypub/actor'
+import { OAuthClientModel } from './oauth-client'
 
 export type OAuthTokenInfo = {
   refreshToken: string
@@ -27,9 +27,7 @@ export type OAuthTokenInfo = {
   client: {
     id: number
   }
-  user: {
-    id: number
-  }
+  user: MUserAccountId
   token: MOAuthTokenUser
 }
 
@@ -80,7 +78,7 @@ enum ScopeNames {
     }
   ]
 })
-export class OAuthTokenModel extends Model<OAuthTokenModel> {
+export class OAuthTokenModel extends Model {
 
   @AllowNull(false)
   @Column
@@ -134,7 +132,7 @@ export class OAuthTokenModel extends Model<OAuthTokenModel> {
   @AfterUpdate
   @AfterDestroy
   static removeTokenCache (token: OAuthTokenModel) {
-    return clearCacheByToken(token.accessToken)
+    return TokensCache.Instance.clearCacheByToken(token.accessToken)
   }
 
   static loadByRefreshToken (refreshToken: string) {
@@ -174,7 +172,7 @@ export class OAuthTokenModel extends Model<OAuthTokenModel> {
                           })
   }
 
-  static getByTokenAndPopulateUser (bearerToken: string): Bluebird<MOAuthTokenUser> {
+  static getByTokenAndPopulateUser (bearerToken: string): Promise<MOAuthTokenUser> {
     const query = {
       where: {
         accessToken: bearerToken
@@ -190,7 +188,7 @@ export class OAuthTokenModel extends Model<OAuthTokenModel> {
                           })
   }
 
-  static getByRefreshTokenAndPopulateUser (refreshToken: string): Bluebird<MOAuthTokenUser> {
+  static getByRefreshTokenAndPopulateUser (refreshToken: string): Promise<MOAuthTokenUser> {
     const query = {
       where: {
         refreshToken
@@ -207,6 +205,8 @@ export class OAuthTokenModel extends Model<OAuthTokenModel> {
   }
 
   static deleteUserToken (userId: number, t?: Transaction) {
+    TokensCache.Instance.deleteUserToken(userId)
+
     const query = {
       where: {
         userId

@@ -16,23 +16,27 @@ export class JobsComponent extends RestTable implements OnInit {
   private static LOCAL_STORAGE_STATE = 'jobs-list-state'
   private static LOCAL_STORAGE_TYPE = 'jobs-list-type'
 
-  jobState: JobStateClient = 'waiting'
+  jobState?: JobStateClient | 'all'
   jobStates: JobStateClient[] = [ 'active', 'completed', 'failed', 'waiting', 'delayed' ]
 
   jobType: JobTypeClient = 'all'
   jobTypes: JobTypeClient[] = [
     'all',
+
     'activitypub-follow',
     'activitypub-http-broadcast',
     'activitypub-http-fetcher',
     'activitypub-http-unicast',
+    'activitypub-refresher',
+    'activitypub-cleaner',
+    'actor-keys',
     'email',
-    'video-transcoding',
     'video-file-import',
     'video-import',
-    'videos-views',
-    'activitypub-refresher',
-    'video-redundancy'
+    'video-live-ending',
+    'video-redundancy',
+    'video-transcoding',
+    'videos-views'
   ]
 
   jobs: Job[] = []
@@ -43,7 +47,7 @@ export class JobsComponent extends RestTable implements OnInit {
   constructor (
     private notifier: Notifier,
     private jobsService: JobService
-    ) {
+  ) {
     super()
   }
 
@@ -71,6 +75,14 @@ export class JobsComponent extends RestTable implements OnInit {
     }
   }
 
+  getColspan () {
+    if (this.jobState === 'all' && this.hasProgress()) return 7
+
+    if (this.jobState === 'all' || this.hasProgress()) return 6
+
+    return 5
+  }
+
   onJobStateOrTypeChanged () {
     this.pagination.start = 0
 
@@ -78,9 +90,34 @@ export class JobsComponent extends RestTable implements OnInit {
     this.saveJobStateAndType()
   }
 
+  hasProgress () {
+    return this.jobType === 'all' || this.jobType === 'video-transcoding'
+  }
+
+  getProgress (job: Job) {
+    if (job.state === 'active') return job.progress + '%'
+
+    return ''
+  }
+
+  refresh () {
+    this.jobs = []
+    this.totalRecords = 0
+
+    this.loadData()
+  }
+
   protected loadData () {
+    let jobState = this.jobState as JobState
+    if (this.jobState === 'all') jobState = null
+
     this.jobsService
-      .getJobs(this.jobState, this.jobType, this.pagination, this.sort)
+      .getJobs({
+        jobState,
+        jobType: this.jobType,
+        pagination: this.pagination,
+        sort: this.sort
+      })
       .subscribe(
         resultList => {
           this.jobs = resultList.data

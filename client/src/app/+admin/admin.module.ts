@@ -3,13 +3,24 @@ import { SelectButtonModule } from 'primeng/selectbutton'
 import { TableModule } from 'primeng/table'
 import { NgModule } from '@angular/core'
 import { SharedAbuseListModule } from '@app/shared/shared-abuse-list'
+import { SharedActorImageModule } from '@app/shared/shared-actor-image'
 import { SharedFormModule } from '@app/shared/shared-forms'
 import { SharedGlobalIconModule } from '@app/shared/shared-icons'
 import { SharedMainModule } from '@app/shared/shared-main'
 import { SharedModerationModule } from '@app/shared/shared-moderation'
+import { SharedVideoCommentModule } from '@app/shared/shared-video-comment'
 import { AdminRoutingModule } from './admin-routing.module'
 import { AdminComponent } from './admin.component'
-import { ConfigComponent, EditCustomConfigComponent } from './config'
+import {
+  ConfigComponent,
+  EditAdvancedConfigurationComponent,
+  EditBasicConfigurationComponent,
+  EditConfigurationService,
+  EditCustomConfigComponent,
+  EditInstanceInformationComponent,
+  EditLiveConfigurationComponent,
+  EditVODTranscodingComponent
+} from './config'
 import { ConfigService } from './config/shared/config.service'
 import { FollowersListComponent, FollowsComponent, VideoRedundanciesListComponent } from './follows'
 import { FollowingListComponent } from './follows/following-list/following-list.component'
@@ -18,6 +29,7 @@ import { VideoRedundancyInformationComponent } from './follows/video-redundancie
 import { AbuseListComponent, VideoBlockListComponent } from './moderation'
 import { InstanceAccountBlocklistComponent, InstanceServerBlocklistComponent } from './moderation/instance-blocklist'
 import { ModerationComponent } from './moderation/moderation.component'
+import { VideoCommentListComponent } from './moderation/video-comment-list'
 import { PluginListInstalledComponent } from './plugins/plugin-list-installed/plugin-list-installed.component'
 import { PluginSearchComponent } from './plugins/plugin-search/plugin-search.component'
 import { PluginShowInstalledComponent } from './plugins/plugin-show-installed/plugin-show-installed.component'
@@ -37,6 +49,8 @@ import { UserCreateComponent, UserListComponent, UserPasswordComponent, UsersCom
     SharedModerationModule,
     SharedGlobalIconModule,
     SharedAbuseListModule,
+    SharedVideoCommentModule,
+    SharedActorImageModule,
 
     TableModule,
     SelectButtonModule,
@@ -62,6 +76,7 @@ import { UserCreateComponent, UserListComponent, UserPasswordComponent, UsersCom
     ModerationComponent,
     VideoBlockListComponent,
     AbuseListComponent,
+    VideoCommentListComponent,
 
     InstanceServerBlocklistComponent,
     InstanceAccountBlocklistComponent,
@@ -77,7 +92,13 @@ import { UserCreateComponent, UserListComponent, UserPasswordComponent, UsersCom
     DebugComponent,
 
     ConfigComponent,
-    EditCustomConfigComponent
+
+    EditCustomConfigComponent,
+    EditBasicConfigurationComponent,
+    EditVODTranscodingComponent,
+    EditLiveConfigurationComponent,
+    EditAdvancedConfigurationComponent,
+    EditInstanceInformationComponent
   ],
 
   exports: [
@@ -89,7 +110,8 @@ import { UserCreateComponent, UserListComponent, UserPasswordComponent, UsersCom
     LogsService,
     DebugService,
     ConfigService,
-    PluginApiService
+    PluginApiService,
+    EditConfigurationService
   ]
 })
 export class AdminModule { }

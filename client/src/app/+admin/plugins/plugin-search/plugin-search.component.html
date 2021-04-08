@@ -3,7 +3,7 @@
 </div>
 
 <div class="search-bar">
-  <input type="text" (input)="onSearchChange($event)" i18n-placeholder placeholder="Search..."/>
+  <input type="text" (input)="onSearchChange($event)" i18n-placeholder placeholder="Search..." autofocus />
 </div>
 
 <div class="alert alert-info" i18n *ngIf="pluginInstalled">
@@ -20,8 +20,8 @@
     <my-global-icon iconName="search"></my-global-icon>
 
     <ng-container i18n>
-      {{ pagination.totalItems }} {pagination.totalItems, plural, =1 {result} other {results}} for "{{ search }}"
-      </ng-container>
+      {{ pagination.totalItems }} {pagination.totalItems, plural, =1 {result} other {results}} for {{ search }}"
+    </ng-container>
   </ng-container>
 </div>
 
@@ -41,7 +41,7 @@
           <my-global-icon iconName="home"></my-global-icon>
         </a>
 
-        <a class="plugin-icon" target="_blank" rel="noopener noreferrer" [href]="'https://www.npmjs.com/package/peertube-plugin-' + plugin.name" i18n-title title="Plugin npm package (new window)">
+        <a class="plugin-icon" target="_blank" rel="noopener noreferrer" [href]="getPluginOrThemeHref(plugin.name)" i18n-title title="Plugin npm package (new window)">
           <my-global-icon iconName="npm"></my-global-icon>
         </a>
 

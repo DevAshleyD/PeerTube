@@ -1,7 +1,7 @@
 @import '_mixins';
 @import '_variables';
 
-my-input-readonly-copy {
+my-input-toggle-hidden {
   width: 100%;
 }
 
@@ -35,6 +35,10 @@ my-input-readonly-copy {
 
 .filters {
   margin-top: 30px;
+
+  .advanced-filters.show {
+    overflow: visible !important;
+  }
 
   .advanced-filters-button {
     display: flex;

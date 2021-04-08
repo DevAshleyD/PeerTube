@@ -1,0 +1,67 @@
+@import '_variables';
+@import '_mixins';
+
+h1 {
+  display: flex;
+}
+
+.create-button {
+  @include create-button;
+}
+
+input[type=text] {
+  @include peertube-input-text(300px);
+}
+
+.video-playlist {
+  @include row-blocks($column-responsive: false);
+}
+
+.video-playlist-buttons {
+  display: flex;
+  margin-left: 10px;
+  align-self: flex-end;
+}
+
+.video-playlists-header {
+  margin-bottom: 30px;
+}
+
+my-video-playlist-miniature {
+  display: block;
+  flex-grow: 1;
+}
+
+my-delete-button {
+  margin-right: 10px;
+}
+
+@include on-small-main-col {
+  .video-playlists-header {
+    text-align: center;
+  }
+
+  .video-playlist {
+    flex-wrap: wrap;
+  }
+
+  .video-playlist-buttons {
+    margin-top: 10px;
+    margin-left: auto;
+  }
+}
+
+@include on-mobile-main-col {
+  .video-playlists-header {
+    flex-direction: column;
+
+    input[type=text] {
+      width: 100% !important;
+      margin-bottom: 12px;
+    }
+  }
+
+  .action-button {
+    margin-left: 0;
+  }
+}

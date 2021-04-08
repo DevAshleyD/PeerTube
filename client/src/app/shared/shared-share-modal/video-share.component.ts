@@ -16,6 +16,7 @@ type Customizations = {
   subtitle: string
 
   loop: boolean
+  originUrl: boolean
   autoplay: boolean
   muted: boolean
   title: boolean
@@ -65,6 +66,7 @@ export class VideoShareComponent {
       subtitle,
 
       loop: false,
+      originUrl: false,
       autoplay: false,
       muted: false,
 
@@ -84,18 +86,19 @@ export class VideoShareComponent {
     const options = this.getVideoOptions(this.video.embedUrl)
 
     const embedUrl = buildVideoLink(options)
-    return buildVideoOrPlaylistEmbed(embedUrl)
+    return buildVideoOrPlaylistEmbed(embedUrl, this.video.name)
   }
 
   getPlaylistIframeCode () {
     const options = this.getPlaylistOptions(this.playlist.embedUrl)
 
     const embedUrl = buildPlaylistLink(options)
-    return buildVideoOrPlaylistEmbed(embedUrl)
+    return buildVideoOrPlaylistEmbed(embedUrl, this.playlist.displayName)
   }
 
   getVideoUrl () {
-    const baseUrl = window.location.origin + '/videos/watch/' + this.video.uuid
+    let baseUrl = this.customizations.originUrl ? this.video.originInstanceUrl : window.location.origin
+    baseUrl += '/videos/watch/' + this.video.uuid
     const options = this.getVideoOptions(baseUrl)
 
     return buildVideoLink(options)
@@ -115,6 +118,10 @@ export class VideoShareComponent {
 
   isVideoInEmbedTab () {
     return this.activeVideoId === 'embed'
+  }
+
+  isLocalVideo () {
+    return this.video.isLocal
   }
 
   private getPlaylistOptions (baseUrl?: string) {

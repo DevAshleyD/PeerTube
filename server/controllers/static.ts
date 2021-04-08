@@ -1,31 +1,29 @@
 import * as cors from 'cors'
 import * as express from 'express'
+import { join } from 'path'
+import { getRegisteredPlugins, getRegisteredThemes } from '@server/controllers/api/config'
+import { serveIndexHTML } from '@server/lib/client-html'
+import { HttpStatusCode } from '@shared/core-utils/miscs/http-error-codes'
+import { HttpNodeinfoDiasporaSoftwareNsSchema20 } from '../../shared/models/nodeinfo'
+import { root } from '../helpers/core-utils'
+import { CONFIG, isEmailEnabled } from '../initializers/config'
 import {
   CONSTRAINTS_FIELDS,
   DEFAULT_THEME_NAME,
   HLS_STREAMING_PLAYLIST_DIRECTORY,
   PEERTUBE_VERSION,
   ROUTE_CACHE_LIFETIME,
-  STATIC_DOWNLOAD_PATHS,
   STATIC_MAX_AGE,
   STATIC_PATHS,
   WEBSERVER
 } from '../initializers/constants'
-import { cacheRoute } from '../middlewares/cache'
-import { asyncMiddleware, videosDownloadValidator } from '../middlewares'
-import { VideoModel } from '../models/video/video'
-import { UserModel } from '../models/account/user'
-import { VideoCommentModel } from '../models/video/video-comment'
-import { HttpNodeinfoDiasporaSoftwareNsSchema20 } from '../../shared/models/nodeinfo'
-import { join } from 'path'
-import { root } from '../helpers/core-utils'
-import { CONFIG, isEmailEnabled } from '../initializers/config'
-import { getPreview, getVideoCaption } from './lazy-static'
-import { VideoStreamingPlaylistType } from '@shared/models/videos/video-streaming-playlist.type'
-import { MVideoFile, MVideoFullLight } from '@server/types/models'
-import { getTorrentFilePath, getVideoFilePath } from '@server/lib/video-paths'
 import { getThemeOrDefault } from '../lib/plugins/theme-utils'
-import { getEnabledResolutions, getRegisteredPlugins, getRegisteredThemes } from '@server/controllers/api/config'
+import { getEnabledResolutions } from '../lib/video-transcoding'
+import { asyncMiddleware } from '../middlewares'
+import { cacheRoute } from '../middlewares/cache'
+import { UserModel } from '../models/account/user'
+import { VideoModel } from '../models/video/video'
+import { VideoCommentModel } from '../models/video/video-comment'
 
 const staticRouter = express.Router()
 
@@ -35,45 +33,22 @@ staticRouter.use(cors())
   Cors is very important to let other servers access torrent and video files
 */
 
+// FIXME: deprecated in 3.2, use lazy-statics instead
+// Due to historical reasons, we can't really remove this controller
 const torrentsPhysicalPath = CONFIG.STORAGE.TORRENTS_DIR
 staticRouter.use(
   STATIC_PATHS.TORRENTS,
-  cors(),
   express.static(torrentsPhysicalPath, { maxAge: 0 }) // Don't cache because we could regenerate the torrent file
 )
-staticRouter.use(
-  STATIC_DOWNLOAD_PATHS.TORRENTS + ':id-:resolution([0-9]+).torrent',
-  asyncMiddleware(videosDownloadValidator),
-  downloadTorrent
-)
-staticRouter.use(
-  STATIC_DOWNLOAD_PATHS.TORRENTS + ':id-:resolution([0-9]+)-hls.torrent',
-  asyncMiddleware(videosDownloadValidator),
-  downloadHLSVideoFileTorrent
-)
 
-// Videos path for webseeding
+// Videos path for webseed
 staticRouter.use(
   STATIC_PATHS.WEBSEED,
-  cors(),
   express.static(CONFIG.STORAGE.VIDEOS_DIR, { fallthrough: false }) // 404 because we don't have this video
 )
 staticRouter.use(
   STATIC_PATHS.REDUNDANCY,
-  cors(),
   express.static(CONFIG.STORAGE.REDUNDANCY_DIR, { fallthrough: false }) // 404 because we don't have this video
-)
-
-staticRouter.use(
-  STATIC_DOWNLOAD_PATHS.VIDEOS + ':id-:resolution([0-9]+).:extension',
-  asyncMiddleware(videosDownloadValidator),
-  downloadVideoFile
-)
-
-staticRouter.use(
-  STATIC_DOWNLOAD_PATHS.HLS_VIDEOS + ':id-:resolution([0-9]+)-fragmented.:extension',
-  asyncMiddleware(videosDownloadValidator),
-  downloadHLSVideoFile
 )
 
 // HLS
@@ -90,25 +65,6 @@ staticRouter.use(
   express.static(thumbnailsPhysicalPath, { maxAge: STATIC_MAX_AGE.SERVER, fallthrough: false }) // 404 if the file does not exist
 )
 
-// DEPRECATED: use lazy-static route instead
-const avatarsPhysicalPath = CONFIG.STORAGE.AVATARS_DIR
-staticRouter.use(
-  STATIC_PATHS.AVATARS,
-  express.static(avatarsPhysicalPath, { maxAge: STATIC_MAX_AGE.SERVER, fallthrough: false }) // 404 if the file does not exist
-)
-
-// DEPRECATED: use lazy-static route instead
-staticRouter.use(
-  STATIC_PATHS.PREVIEWS + ':uuid.jpg',
-  asyncMiddleware(getPreview)
-)
-
-// DEPRECATED: use lazy-static route instead
-staticRouter.use(
-  STATIC_PATHS.VIDEO_CAPTIONS + ':videoId-:captionLanguage([a-z]+).vtt',
-  asyncMiddleware(getVideoCaption)
-)
-
 // robots.txt service
 staticRouter.get('/robots.txt',
   asyncMiddleware(cacheRoute()(ROUTE_CACHE_LIFETIME.ROBOTS)),
@@ -118,10 +74,15 @@ staticRouter.get('/robots.txt',
   }
 )
 
+staticRouter.all('/teapot',
+  getCup,
+  asyncMiddleware(serveIndexHTML)
+)
+
 // security.txt service
 staticRouter.get('/security.txt',
   (_, res: express.Response) => {
-    return res.redirect(301, '/.well-known/security.txt')
+    return res.redirect(HttpStatusCode.MOVED_PERMANENTLY_301, '/.well-known/security.txt')
   }
 )
 
@@ -199,7 +160,7 @@ export {
 async function generateNodeinfo (req: express.Request, res: express.Response) {
   const { totalVideos } = await VideoModel.getStats()
   const { totalLocalVideoComments } = await VideoCommentModel.getStats()
-  const { totalUsers } = await UserModel.getStats()
+  const { totalUsers, totalMonthlyActiveUsers, totalHalfYearActiveUsers } = await UserModel.getStats()
   let json = {}
 
   if (req.params.version && (req.params.version === '2.0')) {
@@ -222,7 +183,9 @@ async function generateNodeinfo (req: express.Request, res: express.Response) {
       openRegistrations: CONFIG.SIGNUP.ENABLED,
       usage: {
         users: {
-          total: totalUsers
+          total: totalUsers,
+          activeMonth: totalMonthlyActiveUsers,
+          activeHalfyear: totalHalfYearActiveUsers
         },
         localPosts: totalVideos,
         localComments: totalLocalVideoComments
@@ -260,7 +223,14 @@ async function generateNodeinfo (req: express.Request, res: express.Response) {
             webtorrent: {
               enabled: CONFIG.TRANSCODING.WEBTORRENT.ENABLED
             },
-            enabledResolutions: getEnabledResolutions()
+            enabledResolutions: getEnabledResolutions('vod')
+          },
+          live: {
+            enabled: CONFIG.LIVE.ENABLED,
+            transcoding: {
+              enabled: CONFIG.LIVE.TRANSCODING.ENABLED,
+              enabledResolutions: getEnabledResolutions('live')
+            }
           },
           import: {
             videos: {
@@ -282,9 +252,9 @@ async function generateNodeinfo (req: express.Request, res: express.Response) {
           avatar: {
             file: {
               size: {
-                max: CONSTRAINTS_FIELDS.ACTORS.AVATAR.FILE_SIZE.max
+                max: CONSTRAINTS_FIELDS.ACTORS.IMAGE.FILE_SIZE.max
               },
-              extensions: CONSTRAINTS_FIELDS.ACTORS.AVATAR.EXTNAME
+              extensions: CONSTRAINTS_FIELDS.ACTORS.IMAGE.EXTNAME
             }
           },
           video: {
@@ -324,62 +294,16 @@ async function generateNodeinfo (req: express.Request, res: express.Response) {
     res.contentType('application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"')
   } else {
     json = { error: 'Nodeinfo schema version not handled' }
-    res.status(404)
+    res.status(HttpStatusCode.NOT_FOUND_404)
   }
 
   return res.send(json).end()
 }
 
-function downloadTorrent (req: express.Request, res: express.Response) {
-  const video = res.locals.videoAll
+function getCup (req: express.Request, res: express.Response, next: express.NextFunction) {
+  res.status(HttpStatusCode.I_AM_A_TEAPOT_418)
+  res.setHeader('Accept-Additions', 'Non-Dairy;1,Sugar;1')
+  res.setHeader('Safe', 'if-sepia-awake')
 
-  const videoFile = getVideoFile(req, video.VideoFiles)
-  if (!videoFile) return res.status(404).end()
-
-  return res.download(getTorrentFilePath(video, videoFile), `${video.name}-${videoFile.resolution}p.torrent`)
-}
-
-function downloadHLSVideoFileTorrent (req: express.Request, res: express.Response) {
-  const video = res.locals.videoAll
-
-  const playlist = getHLSPlaylist(video)
-  if (!playlist) return res.status(404).end
-
-  const videoFile = getVideoFile(req, playlist.VideoFiles)
-  if (!videoFile) return res.status(404).end()
-
-  return res.download(getTorrentFilePath(playlist, videoFile), `${video.name}-${videoFile.resolution}p-hls.torrent`)
-}
-
-function downloadVideoFile (req: express.Request, res: express.Response) {
-  const video = res.locals.videoAll
-
-  const videoFile = getVideoFile(req, video.VideoFiles)
-  if (!videoFile) return res.status(404).end()
-
-  return res.download(getVideoFilePath(video, videoFile), `${video.name}-${videoFile.resolution}p${videoFile.extname}`)
-}
-
-function downloadHLSVideoFile (req: express.Request, res: express.Response) {
-  const video = res.locals.videoAll
-  const playlist = getHLSPlaylist(video)
-  if (!playlist) return res.status(404).end
-
-  const videoFile = getVideoFile(req, playlist.VideoFiles)
-  if (!videoFile) return res.status(404).end()
-
-  const filename = `${video.name}-${videoFile.resolution}p-${playlist.getStringType()}${videoFile.extname}`
-  return res.download(getVideoFilePath(playlist, videoFile), filename)
-}
-
-function getVideoFile (req: express.Request, files: MVideoFile[]) {
-  const resolution = parseInt(req.params.resolution, 10)
-  return files.find(f => f.resolution === resolution)
-}
-
-function getHLSPlaylist (video: MVideoFullLight) {
-  const playlist = video.VideoStreamingPlaylists.find(p => p.type === VideoStreamingPlaylistType.HLS)
-  if (!playlist) return undefined
-
-  return Object.assign(playlist, { Video: video })
+  return next()
 }

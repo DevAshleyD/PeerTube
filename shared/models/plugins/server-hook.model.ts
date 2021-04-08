@@ -5,13 +5,37 @@ export const serverFilterHookObject = {
   // (used by the trending page, recently-added page, local page etc)
   'filter:api.videos.list.params': true,
   'filter:api.videos.list.result': true,
+
+  // Filter params/result used to list account videos for the REST API
+  'filter:api.accounts.videos.list.params': true,
+  'filter:api.accounts.videos.list.result': true,
+
+  // Filter params/result used to list channel videos for the REST API
+  'filter:api.video-channels.videos.list.params': true,
+  'filter:api.video-channels.videos.list.result': true,
+
+  // Filter params/result used to list my user videos for the REST API
+  'filter:api.user.me.videos.list.params': true,
+  'filter:api.user.me.videos.list.result': true,
+
+  // Filter params/results to search videos/channels in the DB or on the remote index
+  'filter:api.search.videos.local.list.params': true,
+  'filter:api.search.videos.local.list.result': true,
+  'filter:api.search.videos.index.list.params': true,
+  'filter:api.search.videos.index.list.result': true,
+  'filter:api.search.video-channels.local.list.params': true,
+  'filter:api.search.video-channels.local.list.result': true,
+  'filter:api.search.video-channels.index.list.params': true,
+  'filter:api.search.video-channels.index.list.result': true,
+
   // Filter the result of the get function
   // Used to get detailed video information (video watch page for example)
   'filter:api.video.get.result': true,
 
-  // Filter the result of the accept upload, import via torrent or url functions
+  // Filter the result of the accept upload/live, import via torrent/url functions
   // If this function returns false then the upload is aborted with an error
   'filter:api.video.upload.accept.result': true,
+  'filter:api.live-video.create.accept.result': true,
   'filter:api.video.pre-import-url.accept.result': true,
   'filter:api.video.pre-import-torrent.accept.result': true,
   'filter:api.video.post-import-url.accept.result': true,
@@ -36,7 +60,15 @@ export const serverFilterHookObject = {
   'filter:video.auto-blacklist.result': true,
 
   // Filter result used to check if a user can register on the instance
-  'filter:api.user.signup.allowed.result': true
+  'filter:api.user.signup.allowed.result': true,
+
+  // Filter result used to check if video/torrent download is allowed
+  'filter:api.download.video.allowed.result': true,
+  'filter:api.download.torrent.allowed.result': true,
+
+  // Filter result to check if the embed is allowed for a particular request
+  'filter:html.embed.video.allowed.result': true,
+  'filter:html.embed.video-playlist.allowed.result': true
 }
 
 export type ServerFilterHookName = keyof typeof serverFilterHookObject
@@ -53,6 +85,9 @@ export const serverActionHookObject = {
   'action:api.video.uploaded': true,
   // Fired when a local video is viewed
   'action:api.video.viewed': true,
+
+  // Fired when a live video is created
+  'action:api.live-video.created': true,
 
   // Fired when a thread is created
   'action:api.video-thread.created': true,

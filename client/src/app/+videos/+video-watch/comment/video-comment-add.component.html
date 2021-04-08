@@ -57,13 +57,9 @@
   </div>
   <div class="modal-body">
     <span i18n>
-      You can comment using an account on any ActivityPub-compatible instance.
-      On most platforms, you can find the video by typing its URL in the search bar and then comment it
-      from within the software's interface.
+      You can comment using an account on any ActivityPub-compatible instance (PeerTube/Mastodon/Pleroma account for example).
     </span>
-    <span i18n>
-      If you have an account on Mastodon or Pleroma, you can open it directly in their interface:
-    </span>
+
     <my-remote-subscribe [interact]="true" [uri]="getUri()"></my-remote-subscribe>
   </div>
   <div class="modal-footer inputs">
@@ -85,15 +81,10 @@
     <my-global-icon iconName="cross" aria-label="Close" role="button" (click)="hideModals()"></my-global-icon>
   </div>
   <div class="modal-body">
-    <table class="table-emoji" *ngFor="let emojiMarkup of emojiMarkupList | keyvalue">
-      <tr>
-        <td>
-          <span>{{ emojiMarkup.value }}</span>
-        </td>
-        <td>
-          <code>:{{ emojiMarkup.key }}:</code>
-        </td>
-      </tr>
-    </table>
+    <div class="emoji-flex">
+      <div class="emoji-flex-item" *ngFor="let emojiMarkup of emojiMarkupList">
+        {{ emojiMarkup[0] }} <code>:{{ emojiMarkup[1] }}:</code>
+      </div>
+    </div>
   </div>
 </ng-template>

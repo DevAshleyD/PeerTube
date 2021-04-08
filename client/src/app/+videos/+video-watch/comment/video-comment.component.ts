@@ -2,7 +2,7 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, ViewChild } from '@angular/core'
 import { MarkdownService, Notifier, UserService } from '@app/core'
 import { AuthService } from '@app/core/auth'
-import { Account, Actor, DropdownAction, Video } from '@app/shared/shared-main'
+import { Account, DropdownAction, Video } from '@app/shared/shared-main'
 import { CommentReportComponent } from '@app/shared/shared-moderation/report-modals/comment-report.component'
 import { VideoComment, VideoCommentThreadTree } from '@app/shared/shared-video-comment'
 import { User, UserRight } from '@shared/models'
@@ -62,6 +62,7 @@ export class VideoCommentComponent implements OnInit, OnChanges {
     if (!this.commentTree) {
       this.commentTree = {
         comment: this.comment,
+        hasDisplayedChildren: false,
         children: []
       }
 
@@ -70,6 +71,7 @@ export class VideoCommentComponent implements OnInit, OnChanges {
 
     this.commentTree.children.unshift({
       comment: createdComment,
+      hasDisplayedChildren: false,
       children: []
     })
 
@@ -130,11 +132,14 @@ export class VideoCommentComponent implements OnInit, OnChanges {
   }
 
   switchToDefaultAvatar ($event: Event) {
-    ($event.target as HTMLImageElement).src = Actor.GET_DEFAULT_AVATAR_URL()
+    ($event.target as HTMLImageElement).src = Account.GET_DEFAULT_AVATAR_URL()
   }
 
-  isNotDeletedOrDeletedWithReplies () {
-    return !this.comment.isDeleted || this.comment.isDeleted && this.comment.totalReplies !== 0
+  isCommentDisplayed () {
+    // Not deleted
+    return !this.comment.isDeleted ||
+      this.comment.totalReplies !== 0 || // Or root comment thread has replies
+      (this.commentTree?.hasDisplayedChildren) // Or this is a reply that have other replies
   }
 
   private getUserIfNeeded (account: Account) {
@@ -153,7 +158,9 @@ export class VideoCommentComponent implements OnInit, OnChanges {
   }
 
   private async init () {
-    const html = await this.markdownService.textMarkdownToHTML(this.comment.text, true, true)
+    // Before HTML rendering restore line feed for markdown list compatibility
+    const commentText = this.comment.text.replace(/<br.?\/?>/g, '\r\n')
+    const html = await this.markdownService.textMarkdownToHTML(commentText, true, true)
     this.sanitizedCommentHTML = await this.markdownService.processVideoTimestamps(html)
     this.newParentComments = this.parentComments.concat([ this.comment ])
 

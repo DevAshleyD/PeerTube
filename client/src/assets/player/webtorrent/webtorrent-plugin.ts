@@ -132,11 +132,15 @@ class WebTorrentPlugin extends Plugin {
     done: () => void = () => { /* empty */ }
   ) {
     // Automatically choose the adapted video file
-    if (videoFile === undefined) {
+    if (!videoFile) {
       const savedAverageBandwidth = getAverageBandwidthInStore()
       videoFile = savedAverageBandwidth
         ? this.getAppropriateFile(savedAverageBandwidth)
         : this.pickAverageVideoFile()
+    }
+
+    if (!videoFile) {
+      throw Error(`Can't update video file since videoFile is undefined.`)
     }
 
     // Don't add the same video file once again
@@ -245,6 +249,8 @@ class WebTorrentPlugin extends Plugin {
     options: PlayOptions,
     done: Function
   ) {
+    if (!magnetOrTorrentUrl) return this.fallbackToHttp(options, done)
+
     console.log('Adding ' + magnetOrTorrentUrl + '.')
 
     const oldTorrent = this.torrent
@@ -487,6 +493,7 @@ class WebTorrentPlugin extends Plugin {
       if (this.webtorrent.downloadSpeed !== 0) this.downloadSpeeds.push(this.webtorrent.downloadSpeed)
 
       return this.player.trigger('p2pInfo', {
+        source: 'webtorrent',
         http: {
           downloadSpeed: 0,
           uploadSpeed: 0,

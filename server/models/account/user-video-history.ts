@@ -19,7 +19,7 @@ import { MUserAccountId, MUserId } from '@server/types/models'
     }
   ]
 })
-export class UserVideoHistoryModel extends Model<UserVideoHistoryModel> {
+export class UserVideoHistoryModel extends Model {
   @CreatedAt
   createdAt: Date
 
@@ -55,10 +55,11 @@ export class UserVideoHistoryModel extends Model<UserVideoHistoryModel> {
   })
   User: UserModel
 
-  static listForApi (user: MUserAccountId, start: number, count: number) {
+  static listForApi (user: MUserAccountId, start: number, count: number, search?: string) {
     return VideoModel.listForApi({
       start,
       count,
+      search,
       sort: '-"userVideoHistory"."updatedAt"',
       nsfw: null, // All
       includeLocalVideos: true,

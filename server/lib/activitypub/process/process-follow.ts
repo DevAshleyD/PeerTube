@@ -15,9 +15,11 @@ import { getServerActor } from '@server/models/application/application'
 
 async function processFollowActivity (options: APProcessorOptions<ActivityFollow>) {
   const { activity, byActor } = options
-  const activityObject = getAPId(activity.object)
 
-  return retryTransactionWrapper(processFollow, byActor, activityObject)
+  const activityId = activity.id
+  const objectId = getAPId(activity.object)
+
+  return retryTransactionWrapper(processFollow, byActor, activityId, objectId)
 }
 
 // ---------------------------------------------------------------------------
@@ -28,7 +30,7 @@ export {
 
 // ---------------------------------------------------------------------------
 
-async function processFollow (byActor: MActorSignature, targetActorURL: string) {
+async function processFollow (byActor: MActorSignature, activityId: string, targetActorURL: string) {
   const { actorFollow, created, isFollowingInstance, targetActor } = await sequelizeTypescript.transaction(async t => {
     const targetActor = await ActorModel.loadByUrlAndPopulateAccountAndChannel(targetActorURL, t)
 
@@ -41,7 +43,7 @@ async function processFollow (byActor: MActorSignature, targetActorURL: string) 
     if (isFollowingInstance && CONFIG.FOLLOWERS.INSTANCE.ENABLED === false) {
       logger.info('Rejecting %s because instance followers are disabled.', targetActor.url)
 
-      await sendReject(byActor, targetActor)
+      await sendReject(activityId, byActor, targetActor)
 
       return { actorFollow: undefined as MActorFollowActors }
     }
@@ -54,7 +56,11 @@ async function processFollow (byActor: MActorSignature, targetActorURL: string) 
       defaults: {
         actorId: byActor.id,
         targetActorId: targetActor.id,
-        state: CONFIG.FOLLOWERS.INSTANCE.MANUAL_APPROVAL ? 'pending' : 'accepted'
+        url: activityId,
+
+        state: CONFIG.FOLLOWERS.INSTANCE.MANUAL_APPROVAL
+          ? 'pending'
+          : 'accepted'
       },
       transaction: t
     })
@@ -63,6 +69,13 @@ async function processFollow (byActor: MActorSignature, targetActorURL: string) 
     // Or if the instance automatically accepts followers
     if (actorFollow.state !== 'accepted' && (isFollowingInstance === false || CONFIG.FOLLOWERS.INSTANCE.MANUAL_APPROVAL === false)) {
       actorFollow.state = 'accepted'
+
+      await actorFollow.save({ transaction: t })
+    }
+
+    // Before PeerTube V3 we did not save the follow ID. Try to fix these old follows
+    if (!actorFollow.url) {
+      actorFollow.url = activityId
       await actorFollow.save({ transaction: t })
     }
 

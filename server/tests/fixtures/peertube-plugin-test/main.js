@@ -7,6 +7,8 @@ async function register ({ registerHook, registerSetting, settingsManager, stora
     'action:api.video.uploaded',
     'action:api.video.viewed',
 
+    'action:api.live-video.created',
+
     'action:api.video-thread.created',
     'action:api.video-comment-reply.created',
     'action:api.video-comment.deleted',
@@ -38,6 +40,36 @@ async function register ({ registerHook, registerSetting, settingsManager, stora
   })
 
   registerHook({
+    target: 'filter:api.accounts.videos.list.params',
+    handler: obj => addToCount(obj)
+  })
+
+  registerHook({
+    target: 'filter:api.accounts.videos.list.result',
+    handler: obj => addToTotal(obj, 2)
+  })
+
+  registerHook({
+    target: 'filter:api.video-channels.videos.list.params',
+    handler: obj => addToCount(obj, 3)
+  })
+
+  registerHook({
+    target: 'filter:api.video-channels.videos.list.result',
+    handler: obj => addToTotal(obj, 3)
+  })
+
+  registerHook({
+    target: 'filter:api.user.me.videos.list.params',
+    handler: obj => addToCount(obj, 4)
+  })
+
+  registerHook({
+    target: 'filter:api.user.me.videos.list.result',
+    handler: obj => addToTotal(obj, 4)
+  })
+
+  registerHook({
     target: 'filter:api.video.get.result',
     handler: video => {
       video.name += ' <3'
@@ -46,15 +78,22 @@ async function register ({ registerHook, registerSetting, settingsManager, stora
     }
   })
 
-  registerHook({
-    target: 'filter:api.video.upload.accept.result',
-    handler: ({ accepted }, { videoBody }) => {
-      if (!accepted) return { accepted: false }
-      if (videoBody.name.indexOf('bad word') !== -1) return { accepted: false, errorMessage: 'bad word' }
+  for (const hook of [ 'filter:api.video.upload.accept.result', 'filter:api.live-video.create.accept.result' ]) {
+    registerHook({
+      target: hook,
+      handler: ({ accepted }, { videoBody, liveVideoBody }) => {
+        if (!accepted) return { accepted: false }
 
-      return { accepted: true }
-    }
-  })
+        const name = videoBody
+          ? videoBody.name
+          : liveVideoBody.name
+
+        if (name.indexOf('bad word') !== -1) return { accepted: false, errorMessage: 'bad word' }
+
+        return { accepted: true }
+      }
+    })
+  }
 
   registerHook({
     target: 'filter:api.video.pre-import-url.accept.result',
@@ -145,6 +184,76 @@ async function register ({ registerHook, registerSetting, settingsManager, stora
       return result
     }
   })
+
+  registerHook({
+    target: 'filter:api.download.torrent.allowed.result',
+    handler: (result, params) => {
+      if (params && params.downloadName.includes('bad torrent')) {
+        return { allowed: false, errorMessage: 'Liu Bei' }
+      }
+
+      return result
+    }
+  })
+
+  registerHook({
+    target: 'filter:api.download.video.allowed.result',
+    handler: (result, params) => {
+      if (params && !params.streamingPlaylist && params.video.name.includes('bad file')) {
+        return { allowed: false, errorMessage: 'Cao Cao' }
+      }
+
+      if (params && params.streamingPlaylist && params.video.name.includes('bad playlist file')) {
+        return { allowed: false, errorMessage: 'Sun Jian' }
+      }
+
+      return result
+    }
+  })
+
+  registerHook({
+    target: 'filter:html.embed.video.allowed.result',
+    handler: (result, params) => {
+      return {
+        allowed: false,
+        html: 'Lu Bu'
+      }
+    }
+  })
+
+  registerHook({
+    target: 'filter:html.embed.video-playlist.allowed.result',
+    handler: (result, params) => {
+      return {
+        allowed: false,
+        html: 'Diao Chan'
+      }
+    }
+  })
+
+  {
+    const searchHooks = [
+      'filter:api.search.videos.local.list.params',
+      'filter:api.search.videos.local.list.result',
+      'filter:api.search.videos.index.list.params',
+      'filter:api.search.videos.index.list.result',
+      'filter:api.search.video-channels.local.list.params',
+      'filter:api.search.video-channels.local.list.result',
+      'filter:api.search.video-channels.index.list.params',
+      'filter:api.search.video-channels.index.list.result',
+    ]
+
+    for (const h of searchHooks) {
+      registerHook({
+        target: h,
+        handler: (obj) => {
+          peertubeHelpers.logger.debug('Run hook %s.', h)
+
+          return obj
+        }
+      })
+    }
+  }
 }
 
 async function unregister () {
@@ -158,14 +267,14 @@ module.exports = {
 
 // ############################################################################
 
-function addToCount (obj) {
-  return Object.assign({}, obj, { count: obj.count + 1 })
+function addToCount (obj, amount = 1) {
+  return Object.assign({}, obj, { count: obj.count + amount })
 }
 
-function addToTotal (result) {
+function addToTotal (result, amount = 1) {
   return {
     data: result.data,
-    total: result.total + 1
+    total: result.total + amount
   }
 }
 

@@ -158,6 +158,7 @@ describe('Videos workflow', () => {
     await videoWatchPage.createPlaylist(playlistName)
 
     await videoWatchPage.saveToPlaylist(playlistName)
+    await browser.sleep(5000)
 
     await videoUploadPage.navigateTo()
 
@@ -205,6 +206,10 @@ describe('Videos workflow', () => {
     await browser.waitForAngularEnabled(false)
 
     await myAccountPage.goOnAssociatedPlaylistEmbed()
+
+    await playerPage.waitUntilPlayerWrapper()
+
+    console.log('Will set %s and %s tokens in local storage.', accessToken, refreshToken)
 
     await browser.executeScript(`window.localStorage.setItem('access_token', '${accessToken}');`)
     await browser.executeScript(`window.localStorage.setItem('refresh_token', '${refreshToken}');`)

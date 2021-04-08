@@ -11,8 +11,9 @@ import { VideoRedundancyModel } from '../server/models/redundancy/video-redundan
 import * as Bluebird from 'bluebird'
 import { getUUIDFromFilename } from '../server/helpers/utils'
 import { ThumbnailModel } from '../server/models/video/thumbnail'
-import { AvatarModel } from '../server/models/avatar/avatar'
+import { ActorImageModel } from '../server/models/account/actor-image'
 import { uniq, values } from 'lodash'
+import { ThumbnailType } from '@shared/models'
 
 run()
   .then(() => process.exit(0))
@@ -39,10 +40,10 @@ async function run () {
 
     await pruneDirectory(CONFIG.STORAGE.REDUNDANCY_DIR, doesRedundancyExist),
 
-    await pruneDirectory(CONFIG.STORAGE.PREVIEWS_DIR, doesThumbnailExist(true)),
-    await pruneDirectory(CONFIG.STORAGE.THUMBNAILS_DIR, doesThumbnailExist(false)),
+    await pruneDirectory(CONFIG.STORAGE.PREVIEWS_DIR, doesThumbnailExist(true, ThumbnailType.PREVIEW)),
+    await pruneDirectory(CONFIG.STORAGE.THUMBNAILS_DIR, doesThumbnailExist(false, ThumbnailType.MINIATURE)),
 
-    await pruneDirectory(CONFIG.STORAGE.AVATARS_DIR, doesAvatarExist)
+    await pruneDirectory(CONFIG.STORAGE.ACTOR_IMAGES, doesActorImageExist)
   )
 
   const tmpFiles = await readdir(CONFIG.STORAGE.TMP_DIR)
@@ -92,9 +93,9 @@ function doesVideoExist (keepOnlyOwned: boolean) {
   }
 }
 
-function doesThumbnailExist (keepOnlyOwned: boolean) {
+function doesThumbnailExist (keepOnlyOwned: boolean, type: ThumbnailType) {
   return async (file: string) => {
-    const thumbnail = await ThumbnailModel.loadByName(file)
+    const thumbnail = await ThumbnailModel.loadByFilename(file, type)
     if (!thumbnail) return false
 
     if (keepOnlyOwned) {
@@ -106,10 +107,10 @@ function doesThumbnailExist (keepOnlyOwned: boolean) {
   }
 }
 
-async function doesAvatarExist (file: string) {
-  const avatar = await AvatarModel.loadByName(file)
+async function doesActorImageExist (file: string) {
+  const image = await ActorImageModel.loadByName(file)
 
-  return !!avatar
+  return !!image
 }
 
 async function doesRedundancyExist (file: string) {

@@ -8,12 +8,17 @@
 >
   <ng-template pTemplate="caption">
     <div class="caption">
-      <div>
+      <div class="left-buttons">
         <my-action-dropdown
           *ngIf="isInSelectionMode()" i18n-label label="Batch actions" theme="orange"
           [actions]="bulkUserActions" [entry]="selectedUsers"
         >
         </my-action-dropdown>
+
+        <a *ngIf="!isInSelectionMode()" class="add-button" routerLink="/admin/users/create">
+          <my-global-icon iconName="user-add" aria-hidden="true"></my-global-icon>
+          <ng-container i18n>Create user</ng-container>
+        </a>
       </div>
 
       <div class="ml-auto">
@@ -30,24 +35,20 @@
           </div>
           <input
             type="text" name="table-filter" id="table-filter" i18n-placeholder placeholder="Filter..."
-            (keyup)="onUserSearch($event)"
+            (keyup)="onSearch($event)"
           >
           <a class="glyphicon glyphicon-remove-sign form-control-feedback form-control-clear" (click)="resetTableFilter()"></a>
           <span class="sr-only" i18n>Clear filters</span>
         </div>
       </div>
 
-      <a class="ml-2 add-button" routerLink="/admin/users/create">
-        <my-global-icon iconName="user-add" aria-hidden="true"></my-global-icon>
-        <ng-container i18n>Create user</ng-container>
-      </a>
     </div>
   </ng-template>
 
   <ng-template pTemplate="header">
     <tr>
       <th style="width: 40px">
-        <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+        <p-tableHeaderCheckbox ariaLabel="Select all rows" i18n-ariaLabel></p-tableHeaderCheckbox>
       </th>
       <th style="width: 40px"></th>
       <th style="width: 60px;">
@@ -86,8 +87,8 @@
   <ng-template pTemplate="body" let-expanded="expanded" let-user>
 
     <tr [pSelectableRow]="user" [ngClass]="{ banned: highlightBannedUsers && user.blocked }">
-      <td>
-        <p-tableCheckbox [value]="user"></p-tableCheckbox>
+      <td class="checkbox-cell">
+        <p-tableCheckbox [value]="user" ariaLabel="Select this row" i18n-ariaLabel></p-tableCheckbox>
       </td>
 
       <td class="expand-cell">

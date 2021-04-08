@@ -1,5 +1,8 @@
 import 'multer'
 import * as express from 'express'
+import { sendUndoFollow } from '@server/lib/activitypub/send'
+import { VideoChannelModel } from '@server/models/video/video-channel'
+import { HttpStatusCode } from '../../../../shared/core-utils/miscs/http-error-codes'
 import { VideoFilter } from '../../../../shared/models/videos/video-query.type'
 import { buildNSFWFilter, getCountVideos } from '../../../helpers/express-utils'
 import { getFormattedObjects } from '../../../helpers/utils'
@@ -64,7 +67,7 @@ mySubscriptionsRouter.post('/me/subscriptions',
 mySubscriptionsRouter.get('/me/subscriptions/:uri',
   authenticate,
   userSubscriptionGetValidator,
-  getUserSubscription
+  asyncMiddleware(getUserSubscription)
 )
 
 mySubscriptionsRouter.delete('/me/subscriptions/:uri',
@@ -125,23 +128,28 @@ function addUserSubscription (req: express.Request, res: express.Response) {
 
   JobQueue.Instance.createJob({ type: 'activitypub-follow', payload })
 
-  return res.status(204).end()
+  return res.status(HttpStatusCode.NO_CONTENT_204).end()
 }
 
-function getUserSubscription (req: express.Request, res: express.Response) {
+async function getUserSubscription (req: express.Request, res: express.Response) {
   const subscription = res.locals.subscription
+  const videoChannel = await VideoChannelModel.loadAndPopulateAccount(subscription.ActorFollowing.VideoChannel.id)
 
-  return res.json(subscription.ActorFollowing.VideoChannel.toFormattedJSON())
+  return res.json(videoChannel.toFormattedJSON())
 }
 
 async function deleteUserSubscription (req: express.Request, res: express.Response) {
   const subscription = res.locals.subscription
 
   await sequelizeTypescript.transaction(async t => {
+    if (subscription.state === 'accepted') await sendUndoFollow(subscription, t)
+
     return subscription.destroy({ transaction: t })
   })
 
-  return res.type('json').status(204).end()
+  return res.type('json')
+            .status(HttpStatusCode.NO_CONTENT_204)
+            .end()
 }
 
 async function getUserSubscriptions (req: express.Request, res: express.Response) {

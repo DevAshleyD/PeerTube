@@ -1,12 +1,15 @@
 import * as express from 'express'
 import { constants, promises as fs } from 'fs'
+import { readFile } from 'fs-extra'
 import { join } from 'path'
+import { logger } from '@server/helpers/logger'
 import { CONFIG } from '@server/initializers/config'
+import { Hooks } from '@server/lib/plugins/hooks'
+import { HttpStatusCode } from '@shared/core-utils'
 import { buildFileLocale, getCompleteLocale, is18nLocale, LOCALE_FILES } from '@shared/core-utils/i18n'
 import { root } from '../helpers/core-utils'
-import { logger } from '../helpers/logger'
-import { ACCEPT_HEADERS, STATIC_MAX_AGE } from '../initializers/constants'
-import { ClientHtml } from '../lib/client-html'
+import { STATIC_MAX_AGE } from '../initializers/constants'
+import { ClientHtml, sendHTML, serveIndexHTML } from '../lib/client-html'
 import { asyncMiddleware, embedCSP } from '../middlewares'
 
 const clientsRouter = express.Router()
@@ -26,6 +29,7 @@ const embedMiddlewares = [
     ? embedCSP
     : (req: express.Request, res: express.Response, next: express.NextFunction) => next(),
 
+  // Set headers
   (req: express.Request, res: express.Response, next: express.NextFunction) => {
     res.removeHeader('X-Frame-Options')
 
@@ -46,24 +50,11 @@ const testEmbedController = (req: express.Request, res: express.Response) => res
 clientsRouter.use('/videos/test-embed', testEmbedController)
 clientsRouter.use('/video-playlists/test-embed', testEmbedController)
 
-// Static HTML/CSS/JS client files
-const staticClientFiles = [
-  'ngsw-worker.js',
-  'ngsw.json'
-]
-
-for (const staticClientFile of staticClientFiles) {
-  const path = join(root(), 'client', 'dist', staticClientFile)
-
-  clientsRouter.get(`/${staticClientFile}`, (req: express.Request, res: express.Response) => {
-    res.sendFile(path, { maxAge: STATIC_MAX_AGE.SERVER })
-  })
-}
-
 // Dynamic PWA manifest
 clientsRouter.get('/manifest.webmanifest', asyncMiddleware(generateManifest))
 
 // Static client overrides
+// Must be consistent with static client overrides redirections in /support/nginx/peertube
 const staticClientOverrides = [
   'assets/images/logo.svg',
   'assets/images/favicon.png',
@@ -86,7 +77,7 @@ clientsRouter.use('/client', express.static(distPath, { maxAge: STATIC_MAX_AGE.C
 
 // 404 for static files not found
 clientsRouter.use('/client/*', (req: express.Request, res: express.Response) => {
-  res.sendStatus(404)
+  res.sendStatus(HttpStatusCode.NOT_FOUND_404)
 })
 
 // Always serve index client page (the client is a single page application, let it handle routing)
@@ -113,30 +104,29 @@ function serveServerTranslations (req: express.Request, res: express.Response) {
     return res.sendFile(path, { maxAge: STATIC_MAX_AGE.SERVER })
   }
 
-  return res.sendStatus(404)
-}
-
-async function serveIndexHTML (req: express.Request, res: express.Response) {
-  if (req.accepts(ACCEPT_HEADERS) === 'html') {
-    try {
-      await generateHTMLPage(req, res, req.params.language)
-      return
-    } catch (err) {
-      logger.error('Cannot generate HTML page.', err)
-    }
-  }
-
-  return res.status(404).end()
+  return res.sendStatus(HttpStatusCode.NOT_FOUND_404)
 }
 
 async function generateEmbedHtmlPage (req: express.Request, res: express.Response) {
+  const hookName = req.originalUrl.startsWith('/video-playlists/')
+    ? 'filter:html.embed.video-playlist.allowed.result'
+    : 'filter:html.embed.video.allowed.result'
+
+  const allowParameters = { req }
+
+  const allowedResult = await Hooks.wrapFun(
+    isEmbedAllowed,
+    allowParameters,
+    hookName
+  )
+
+  if (!allowedResult || allowedResult.allowed !== true) {
+    logger.info('Embed is not allowed.', { allowedResult })
+
+    return sendHTML(allowedResult?.html || '', res)
+  }
+
   const html = await ClientHtml.getEmbedHTML()
-
-  return sendHTML(html, res)
-}
-
-async function generateHTMLPage (req: express.Request, res: express.Response, paramLang?: string) {
-  const html = await ClientHtml.getDefaultHTMLPage(req, res, paramLang)
 
   return sendHTML(html, res)
 }
@@ -165,15 +155,9 @@ async function generateVideoChannelHtmlPage (req: express.Request, res: express.
   return sendHTML(html, res)
 }
 
-function sendHTML (html: string, res: express.Response) {
-  res.set('Content-Type', 'text/html; charset=UTF-8')
-
-  return res.send(html)
-}
-
 async function generateManifest (req: express.Request, res: express.Response) {
   const manifestPhysicalPath = join(root(), 'client', 'dist', 'manifest.webmanifest')
-  const manifestJson = await fs.readFile(manifestPhysicalPath, 'utf8')
+  const manifestJson = await readFile(manifestPhysicalPath, 'utf8')
   const manifest = JSON.parse(manifestJson)
 
   manifest.name = CONFIG.INSTANCE.NAME
@@ -194,4 +178,11 @@ function serveClientOverride (path: string) {
       next()
     }
   }
+}
+
+type AllowedResult = { allowed: boolean, html?: string }
+function isEmbedAllowed (_object: {
+  req: express.Request
+}): AllowedResult {
+  return { allowed: true }
 }

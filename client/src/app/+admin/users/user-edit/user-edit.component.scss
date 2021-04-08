@@ -1,6 +1,8 @@
 @import '_variables';
 @import '_mixins';
 
+$form-base-input-width: 340px;
+
 label {
   font-weight: $font-regular;
   font-size: 100%;
@@ -15,12 +17,24 @@ label {
 }
 
 input:not([type=submit]) {
-  @include peertube-input-text(340px);
+  @include peertube-input-text($form-base-input-width);
+  display: block;
+}
+
+my-input-toggle-hidden {
+  @include responsive-width($form-base-input-width);
+
   display: block;
 }
 
 .peertube-select-container {
-  @include peertube-select-container(340px);
+  @include peertube-select-container($form-base-input-width);
+}
+
+my-select-custom-value {
+  @include responsive-width($form-base-input-width);
+
+  display: block;
 }
 
 input[type=submit], button {
@@ -57,12 +71,4 @@ input[type=submit], button {
 .dashboard {
   @include dashboard;
   max-width: 900px;
-}
-
-my-actor-avatar-info ::ng-deep {
-  .actor-img-edit-container,
-  .actor-info-followers,
-  .actor-info-username {
-    display: none;
-  }
 }

@@ -31,6 +31,8 @@
     "Published": "تم نشرها",
     "To transcode": "إعادة ترميز",
     "To import": "للاستيراد",
+    "Waiting for livestream": "ينتظر البث المباشر",
+    "Livestream ended": "انتهى البث المباشر",
     "Pending": "معلّقة",
     "Success": "نجح",
     "Failed": "فشل",
@@ -240,5 +242,7 @@
     "Yoruba": "اليوروبا",
     "Zhuang": "تشوانغ",
     "Chinese": "الصينية",
-    "Zulu": "الزولو"
+    "Zulu": "الزولو",
+    "Normal mode": "Normal mode",
+    "Theater mode": "نمط المسرح"
 }

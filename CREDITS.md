@@ -4,49 +4,70 @@
  * Rigel Kent
  * Filip Bengtsson
  * kimsible
- * Kim
- * Felix Ableitner
- * Gérald Niel
+ * josé m
+ * Simon Brosdetzko
+ * Clemens Schielicke
+ * Александр
+ * Berto Te
  * Jeff Huang
  * Phongpanot
+ * kontrollanten
+ * Kim
+ * Tirifto
+ * Laurent Ettouati
+ * Felix Ableitner
+ * Marcin Mikołajczak
+ * Gérald Niel
+ * Frank Sträter
  * Julien Maulny
+ * Mark Van den Borre
+ * x
  * Jorropo
  * Josh Morel
- * Александр
  * BO41
- * Berto Te
  * Francesc
- * Tirifto
+ * Slimane Selyan AMIRI
+ * Vodoyo Kamal
  * mando laress
- * Frank Sträter
+ * Quentin PAGÈS
  * John Livingston
+ * Balázs Meskó
  * ButterflyOfFire
+ * Kimsible
+ * Racida S
  * Xabi
  * buoyantair
- * josé m
  * Balázs Úr
- * Quentin PAGÈS
- * Vodoyo Kamal
+ * Ihor Hordiichuk
+ * Jan Keromnes
+ * Luca Calcaterra
+ * Zet
  * Attila F
  * Caroline Chuong
- * Laurent Ettouati
+ * GunChleoc
  * Benjamin Bouvier
- * Jan Keromnes
+ * Eivind Ødegård
  * Kemal Oktay Aktoğan
  * Lucas Declercq
- * Slimane Selyan AMIRI
+ * chris@famichiki.tube
  * knuxify
  * matograine
+ * Alexander Ivanov
  * Daniel Santos
  * David Libeau
+ * Ewald Arnold
  * Florent F
  * Luc Didry
  * Nassim Bounouas
  * NorbiPeti
  * Rafael Fontenelle
+ * Thomas Citharel
+ * Tzafrir Cohen
  * Viorel-Cătălin Răpițeanu
+ * Adrià Martín
  * Ahmed ABERWAG
  * Anne-Gaelle Moulun
+ * Arman
  * BRAINS YUM
  * Belkacem Mohammed
  * Besnik Bleta
@@ -54,30 +75,44 @@
  * David Soh
  * Dimitri Gilbert
  * Florent Poinsaut
+ * Frank Chang
  * Green-Star
  * Micah Elizabeth Scott
- * Racida S
  * SVNET Libre
  * Thomas Kuntz
  * William Lahti
  * Wirebrass
  * Yury Bulka
+ * boris joeson
+ * test2a
+ * 路过是好事
+ * Ajeje Brazorf
  * Angristan
+ * Ch
  * Chris Sakura 佐倉くりす on Youtube
  * DontUseGithub
- * GunChleoc
- * Marcin Mikołajczak
+ * Florian CUNY
+ * MahdiTurki
+ * Mildred
  * Okhin
  * Pierre-Alain TORET
+ * Porrumentzio
  * Serge Victor
- * Thomas Citharel
  * clementbrizard
+ * gohoso9454
  * kaiyou
+ * roberto marcolin
+ * Ahsan Haris Ahmed
  * Alberto Teira
+ * Andrey
  * Andréas Livet
  * Andrés Maldonado
  * Aurélien Bertron
- * Ch
+ * Cedric F
+ * Daniele Garau
+ * Ehsan Gholami
+ * Girish Ramakrishnan
+ * Hakim Oubouali
  * Hans Meiser
  * Iñigo A
  * Jefferson Hernandez
@@ -86,61 +121,82 @@
  * LecygneNoir
  * Leopere
  * Manuela Silva
+ * Mélanie Chauvel
+ * Piotr Sikora
  * Ugaitz
+ * Vincent Finance
+ * Waazdakka
  * Yohan Boniface
  * am97
  * anotheranonymoususer
  * dada
  * frankdelange
  * jonathanraes
- * test2a
+ * Ömer Faruk Çakmak
  * Al-Hassan Abdel-Raouf
+ * Aliaksandr Hrankin
  * Andrew Morgan
+ * Andy Khit
  * Antimidia
+ * Antonio Pandza
+ * Arco
  * Arne Uplegger
  * Aurélien Béranger
  * Average Dude
  * Axel Viala
- * Balázs Meskó
  * BitTube
  * Dashie
+ * Diazepan Medina
  * Dirk Kelly
  * EndoGai
  * Florent Fayolle
  * Florian
  * Frank de Lange
+ * G4dter
  * Gaëtan Rizio
+ * Gopherslol
+ * Hange
+ * Hjalte
  * Jocelyn Jaubert
  * Julien Lemaire
  * Lucas Teixeira
  * Lukas Winkler
  * Manuel Viens
+ * Marcel Cramm
+ * Maxime Louet
  * Millicent Billette
  * Mondo Xíbaro
  * Moritz Warning
+ * Nicolai Larsen
  * Nojus
  * Pierre Jaury
  * Quentin
  * Ronan
  * SerCom_KC
- * Tzafrir Cohen
+ * Thai Localization
  * Valvin
- * Waazdakka
+ * YiDai
+ * Yogesh K S
  * ahmadsharifian
  * bopol
  * framail
  * les
  * libertas
  * merty
+ * qwerty
  * taziden
+ * vancha march
  * victor héry
  * Àngel Pérez Beroy
  * 3risian
+ * A.D.R.S
  * Acid Chicken (硫酸鶏)
  * Adam Adamsky
  * Adam Gauthier
  * Adam Magnier
  * Adnane Belmadiaf
+ * Agron
+ * Alejandro Criado-Pérez
  * Alexander F. Rødseth
  * Ali Alim
  * Aman Sharma
@@ -154,17 +210,19 @@
  * Ben Abbott
  * Ben Lubar
  * Benjamin EWFT
+ * Boo Teille
  * Brad Johnson
+ * Cadence Ember
  * Cale
  * Charles de Lacombe
  * Chris Sakura 佐倉くりす on Youtube - 日本語は第二言語やけ、間違っとったら思いっきり叩いてくださいｗ つたない日本語ばっかりやけど頑張りまーす♪
  * Christoph Geschwind
+ * Chronos
  * Claude
  * Clifford Garwood II
  * Clément Brizard
  * David Dobryakov
  * DeeJayBro
- * Diazepan Medina
  * Edouard SCHWEISGUTH
  * Edwin Alberto Amado Baron
  * Emmanuel Pret
@@ -172,28 +230,35 @@
  * Erwan Croze
  * Fabio Agreles Bezerra
  * Fernandez, ReK2
- * Florian CUNY
- * Girish Ramakrishnan
+ * Florent
  * Glandos
  * Guillaume Pérution-Kihli
  * Gérald CHATAGNON
  * Haelwenn (lanodan) Monnier
  * HesioZ
+ * Hozan Şahin
  * ICabaleiro
+ * Iker Garaialde
  * Ismaël Bouya
+ * Ivan Ip
  * Iván Cabaleiro
  * Jacen
  * Jacob
  * Jacques Foucry
  * Jagannath Bhat
+ * Janey Muñoz
  * Jarosław Maciejewski
+ * Jeena
  * Jessica Fairchild
  * Jinn Koriech
+ * Johan Fleury
  * Jorge Silva
  * Jos
  * Julien Le Bras
+ * Juraj Liso
  * Knackie
  * Kody
+ * Konstantinos Agiannis
  * Kyâne Pichou
  * Leo Mouyna
  * Lesterpig
@@ -210,13 +275,16 @@
  * Martin Trigaux
  * Mateusz Piotrowski
  * Mathieu Agopian
+ * Mathieu Brunot
  * Matthieu De Beule
+ * Max Rosenfors
  * Michael Koppmann
  * Miguel Mayol Tur
  * Mike
  * MrGiga
  * Mélanie Pin
  * Nathanaël J
+ * Net
  * Nicolas Fortin
  * Niklas Reimer
  * Nitesh Sawant
@@ -225,25 +293,34 @@
  * Paul FLORENCE
  * PhieF
  * Philip Durbin
+ * Philipp Fischbeck
  * Predatorix Phoenix
  * Quentin Dupont
  * Quentí
  * ROPEDE
  * Raphael
  * Raphaël Droz
+ * Ray
  * Rebecca
  * Rech
+ * Rep Dolsay
  * Robin
  * Sankar
  * Sebastian Paweł Wolski
  * Simon Gilliot
  * Simounet
  * Stefan Schüller
+ * Steffen Möller
  * Sumit Khanna
+ * SupC
+ * Tanguy BERNARD
+ * Theodore R. Smith
+ * Timo Gurr
  * Timothée Grégoire
  * Tomás Sebastián Romero
  * TrashMacNugget
  * Vagelis F
+ * Vegard Fjeldberg
  * Vincent Stakenburg
  * WhiredPlanck
  * Yann Sionneau
@@ -253,15 +330,19 @@
  * [ Bie ] Watcharapong Suriyawan
  * anmol26s
  * augier
+ * big gamer
  * bikepunk
  * bsky
  * ctlaltdefeat
  * dingycle
+ * eduard pintilie
  * jomo
  * libertysoft3
  * lsde
  * luz.paz
  * luzpaz
+ * madmath03
+ * mahdi
  * memorybox
  * mike stedman
  * morteza
@@ -269,7 +350,6 @@
  * numéro6
  * osauzet
  * potedeo
- * roberto marcolin
  * spf
  * tilllt
  * tomamplius
@@ -277,6 +357,8 @@
  * victor-long
  * xcffl
  * zacharystenger
+ * Óscar Fernández Díaz
+ * Артур Кирпо
  * ‮noisawe
  * abdhessuk
  * abidin24
@@ -399,13 +481,29 @@
 # Design
 
  * [Olivier Massain](https://dribbble.com/omassain)
+ * [Marie-Cécile Godwin Paccard](https://mcgodwin.com/)
 
 
 # Icons
 
- * [Feather Icons](feathericons.com/) (MIT)
+ * [Feather Icons](https://feathericons.com) (MIT)
  * `playlist add`, `history`, `subscriptions`, `miscellaneous-services.svg` by Material UI (Apache 2.0)
  * `support` by Chocobozzz (CC-BY)
  * `language` by Aaron Jin (CC-BY)
  * `video-language` by Rigel Kent (CC-BY)
  * `peertube-x` by Solen DP (CC-BY)
+ * `flame` by Freepik (Flaticon License)
+
+
+# Contributors to our 2020 crowdfunding :heart:
+
+*We ran [a crowdfunding campaign](https://joinpeertube.org/roadmap) in 2020 to implement live streaming to the version 3.0.0 of PeerTube. Thanks to everyone who pitched in and shared the news!*
+
+
+
+
+# Contributors to our 2018 crowdfunding :heart:
+
+*We ran [a crowdfunding campaign](https://www.kisskissbankbank.com/en/projects/peertube-a-free-and-federated-video-platform) in 2018 to pave the road to the version 1.0.0 of PeerTube, with 1,379 backers. Thanks to everyone who pitched in and shared the news!*
+
+

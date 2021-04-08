@@ -12,9 +12,10 @@ export class VideoPlaylistMiniatureComponent {
   @Input() displayChannel = false
   @Input() displayDescription = false
   @Input() displayPrivacy = false
+  @Input() displayAsRow = false
 
   getPlaylistUrl () {
-    if (this.toManage) return [ '/my-account/video-playlists', this.playlist.uuid ]
+    if (this.toManage) return [ '/my-library/video-playlists', this.playlist.uuid ]
     if (this.playlist.videosLength === 0) return null
 
     return [ '/videos/watch/playlist', this.playlist.uuid ]

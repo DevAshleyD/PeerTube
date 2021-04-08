@@ -4,14 +4,15 @@ import { filter, first, map, pairwise } from 'rxjs/operators'
 import { DOCUMENT, PlatformLocation, ViewportScroller } from '@angular/common'
 import { AfterViewInit, Component, Inject, LOCALE_ID, OnInit, ViewChild } from '@angular/core'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
-import { Event, GuardsCheckStart, NavigationEnd, Router, Scroll } from '@angular/router'
+import { Event, GuardsCheckStart, NavigationEnd, RouteConfigLoadEnd, RouteConfigLoadStart, Router, Scroll } from '@angular/router'
 import { AuthService, MarkdownService, RedirectService, ScreenService, ServerService, ThemeService, User } from '@app/core'
 import { HooksService } from '@app/core/plugins/hooks.service'
 import { PluginService } from '@app/core/plugins/plugin.service'
 import { CustomModalComponent } from '@app/modal/custom-modal.component'
 import { InstanceConfigWarningModalComponent } from '@app/modal/instance-config-warning-modal.component'
 import { WelcomeModalComponent } from '@app/modal/welcome-modal.component'
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
+import { NgbConfig, NgbModal } from '@ng-bootstrap/ng-bootstrap'
+import { LoadingBarService } from '@ngx-loading-bar/core'
 import { peertubeLocalStorage } from '@root-helpers/peertube-web-storage'
 import { getShortLocale, is18nPath } from '@shared/core-utils/i18n'
 import { BroadcastMessageLevel, ServerConfig, UserRole } from '@shared/models'
@@ -54,15 +55,19 @@ export class AppComponent implements OnInit, AfterViewInit {
     private location: PlatformLocation,
     private modalService: NgbModal,
     private markdownService: MarkdownService,
+    private ngbConfig: NgbConfig,
+    private loadingBar: LoadingBarService,
     public menu: MenuService
-  ) { }
+  ) {
+    this.ngbConfig.animation = false
+  }
 
   get instanceName () {
     return this.serverConfig.instance.name
   }
 
-  get defaultRoute () {
-    return RedirectService.DEFAULT_ROUTE
+  goToDefaultRoute () {
+    return this.router.navigateByUrl(RedirectService.DEFAULT_ROUTE)
   }
 
   ngOnInit () {
@@ -100,6 +105,12 @@ export class AppComponent implements OnInit, AfterViewInit {
     this.pluginService.initializeCustomModal(this.customModal)
   }
 
+  getToggleTitle () {
+    if (this.menu.isDisplayed()) return $localize`Close the left menu`
+
+    return $localize`Open the left menu`
+  }
+
   isUserLoggedIn () {
     return this.authService.isLoggedIn()
   }
@@ -117,11 +128,12 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     const scrollEvent = eventsObs.pipe(filter((e: Event): e is Scroll => e instanceof Scroll))
 
+    // Handle anchors/restore position
     scrollEvent.subscribe(e => {
       // scrollToAnchor first to preserve anchor position when using history navigation
       if (e.anchor) {
         setTimeout(() => {
-          document.getElementById(e.anchor).scrollIntoView({ behavior: 'smooth', inline: 'nearest' })
+          this.viewportScroller.scrollToAnchor(e.anchor)
         })
 
         return
@@ -169,19 +181,31 @@ export class AppComponent implements OnInit, AfterViewInit {
                         }
                       })
 
+    // Homepage redirection
     navigationEndEvent.pipe(
       map(() => window.location.pathname),
       filter(pathname => !pathname || pathname === '/' || is18nPath(pathname))
     ).subscribe(() => this.redirectService.redirectToHomepage(true))
 
+    // Plugin hooks
     navigationEndEvent.subscribe(e => {
       this.hooks.runAction('action:router.navigation-end', 'common', { path: e.url })
     })
 
+    // Automatically hide/display the menu
     eventsObs.pipe(
       filter((e: Event): e is GuardsCheckStart => e instanceof GuardsCheckStart),
       filter(() => this.screenService.isInSmallView() || this.screenService.isInTouchScreen())
     ).subscribe(() => this.menu.setMenuDisplay(false)) // User clicked on a link in the menu, change the page
+
+    // Handle lazy loaded module
+    eventsObs.pipe(
+      filter((e: Event): e is RouteConfigLoadStart => e instanceof RouteConfigLoadStart)
+    ).subscribe(() => this.loadingBar.useRef().start())
+
+    eventsObs.pipe(
+      filter((e: Event): e is RouteConfigLoadEnd => e instanceof RouteConfigLoadEnd)
+    ).subscribe(() => this.loadingBar.useRef().complete())
   }
 
   private injectBroadcastMessage () {

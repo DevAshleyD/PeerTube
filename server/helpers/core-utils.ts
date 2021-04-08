@@ -5,12 +5,14 @@
   Useful to avoid circular dependencies.
 */
 
-import { createHash, HexBase64Latin1Encoding, randomBytes } from 'crypto'
+import { exec, ExecOptions } from 'child_process'
+import { BinaryToTextEncoding, createHash, randomBytes } from 'crypto'
+import { truncate } from 'lodash'
 import { basename, isAbsolute, join, resolve } from 'path'
 import * as pem from 'pem'
+import { pipeline } from 'stream'
 import { URL } from 'url'
-import { truncate } from 'lodash'
-import { exec, ExecOptions } from 'child_process'
+import { promisify } from 'util'
 
 const objectConverter = (oldObject: any, keyConverter: (e: string) => string, valueConverter: (e: any) => any) => {
   if (!oldObject || typeof oldObject !== 'object') {
@@ -41,6 +43,7 @@ const timeTable = {
 }
 
 export function parseDurationToMs (duration: number | string): number {
+  if (duration === null) return null
   if (typeof duration === 'number') return duration
 
   if (typeof duration === 'string') {
@@ -151,28 +154,20 @@ function root () {
   return rootPath
 }
 
-// Thanks: https://stackoverflow.com/a/12034334
-function escapeHTML (stringParam) {
-  if (!stringParam) return ''
-
-  const entityMap = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    '\'': '&#39;',
-    '/': '&#x2F;',
-    '`': '&#x60;',
-    '=': '&#x3D;'
-  }
-
-  return String(stringParam).replace(/[&<>"'`=/]/g, s => entityMap[s])
-}
-
 function pageToStartAndCount (page: number, itemsPerPage: number) {
   const start = (page - 1) * itemsPerPage
 
   return { start, count: itemsPerPage }
+}
+
+function mapToJSON (map: Map<any, any>) {
+  const obj: any = {}
+
+  for (const [ k, v ] of map) {
+    obj[k] = v
+  }
+
+  return obj
 }
 
 function buildPath (path: string) {
@@ -194,11 +189,11 @@ function peertubeTruncate (str: string, options: { length: number, separator?: R
   return truncate(str, options)
 }
 
-function sha256 (str: string | Buffer, encoding: HexBase64Latin1Encoding = 'hex') {
+function sha256 (str: string | Buffer, encoding: BinaryToTextEncoding = 'hex') {
   return createHash('sha256').update(str).digest(encoding)
 }
 
-function sha1 (str: string | Buffer, encoding: HexBase64Latin1Encoding = 'hex') {
+function sha1 (str: string | Buffer, encoding: BinaryToTextEncoding = 'hex') {
   return createHash('sha1').update(str).digest(encoding)
 }
 
@@ -238,11 +233,23 @@ function promisify2<T, U, A> (func: (arg1: T, arg2: U, cb: (err: any, result: A)
   }
 }
 
+type SemVersion = { major: number, minor: number, patch: number }
+function parseSemVersion (s: string) {
+  const parsed = s.match(/^v?(\d+)\.(\d+)\.(\d+)$/i)
+
+  return {
+    major: parseInt(parsed[1]),
+    minor: parseInt(parsed[2]),
+    patch: parseInt(parsed[3])
+  } as SemVersion
+}
+
 const randomBytesPromise = promisify1<number, Buffer>(randomBytes)
 const createPrivateKey = promisify1<number, { key: string }>(pem.createPrivateKey)
 const getPublicKey = promisify1<string, { publicKey: string }>(pem.getPublicKey)
 const execPromise2 = promisify2<string, any, string>(exec)
 const execPromise = promisify1<string, string>(exec)
+const pipelinePromise = promisify(pipeline)
 
 // ---------------------------------------------------------------------------
 
@@ -253,7 +260,6 @@ export {
 
   objectConverter,
   root,
-  escapeHTML,
   pageToStartAndCount,
   sanitizeUrl,
   sanitizeHost,
@@ -263,6 +269,7 @@ export {
 
   sha256,
   sha1,
+  mapToJSON,
 
   promisify0,
   promisify1,
@@ -272,5 +279,8 @@ export {
   createPrivateKey,
   getPublicKey,
   execPromise2,
-  execPromise
+  execPromise,
+  pipelinePromise,
+
+  parseSemVersion
 }

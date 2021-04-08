@@ -1,26 +1,29 @@
 import * as Bluebird from 'bluebird'
-import { Transaction } from 'sequelize'
+import { extname } from 'path'
+import { Op, Transaction } from 'sequelize'
 import { URL } from 'url'
 import { v4 as uuidv4 } from 'uuid'
+import { getServerActor } from '@server/models/application/application'
+import { ActorImageType } from '@shared/models'
+import { HttpStatusCode } from '../../../shared/core-utils/miscs/http-error-codes'
 import { ActivityPubActor, ActivityPubActorType, ActivityPubOrderedCollection } from '../../../shared/models/activitypub'
 import { ActivityPubAttributedTo } from '../../../shared/models/activitypub/objects'
 import { checkUrlsSameHost, getAPId } from '../../helpers/activitypub'
+import { ActorFetchByUrlType, fetchActorByUrl } from '../../helpers/actor'
 import { sanitizeAndCheckActorObject } from '../../helpers/custom-validators/activitypub/actor'
 import { isActivityPubUrlValid } from '../../helpers/custom-validators/activitypub/misc'
 import { retryTransactionWrapper, updateInstanceWithAnother } from '../../helpers/database-utils'
 import { logger } from '../../helpers/logger'
 import { createPrivateAndPublicKeys } from '../../helpers/peertube-crypto'
-import { doRequest } from '../../helpers/requests'
+import { doJSONRequest, PeerTubeRequestError } from '../../helpers/requests'
 import { getUrlFromWebfinger } from '../../helpers/webfinger'
 import { MIMETYPES, WEBSERVER } from '../../initializers/constants'
+import { sequelizeTypescript } from '../../initializers/database'
 import { AccountModel } from '../../models/account/account'
+import { ActorImageModel } from '../../models/account/actor-image'
 import { ActorModel } from '../../models/activitypub/actor'
-import { AvatarModel } from '../../models/avatar/avatar'
 import { ServerModel } from '../../models/server/server'
 import { VideoChannelModel } from '../../models/video/video-channel'
-import { JobQueue } from '../job-queue'
-import { ActorFetchByUrlType, fetchActorByUrl } from '../../helpers/actor'
-import { sequelizeTypescript } from '../../initializers/database'
 import {
   MAccount,
   MAccountDefault,
@@ -28,27 +31,23 @@ import {
   MActorAccountChannelId,
   MActorAccountChannelIdActor,
   MActorAccountId,
-  MActorDefault,
   MActorFull,
   MActorFullActor,
   MActorId,
+  MActorImage,
+  MActorImages,
   MChannel
 } from '../../types/models'
-import { extname } from 'path'
-import { getServerActor } from '@server/models/application/application'
+import { JobQueue } from '../job-queue'
 
 // Set account keys, this could be long so process after the account creation and do not block the client
-function setAsyncActorKeys <T extends MActor> (actor: T) {
-  return createPrivateAndPublicKeys()
-    .then(({ publicKey, privateKey }) => {
-      actor.publicKey = publicKey
-      actor.privateKey = privateKey
-      return actor.save()
-    })
-    .catch(err => {
-      logger.error('Cannot set public/private keys of actor %d.', actor.url, { err })
-      return actor
-    })
+async function generateAndSaveActorKeys <T extends MActor> (actor: T) {
+  const { publicKey, privateKey } = await createPrivateAndPublicKeys()
+
+  actor.publicKey = publicKey
+  actor.privateKey = privateKey
+
+  return actor.save()
 }
 
 function getOrCreateActorAndServerAndModel (
@@ -103,7 +102,7 @@ async function getOrCreateActorAndServerAndModel (
         const recurseIfNeeded = false
         ownerActor = await getOrCreateActorAndServerAndModel(accountAttributedTo.id, 'all', recurseIfNeeded)
       } catch (err) {
-        logger.error('Cannot get or create account attributed to video channel ' + actor.url)
+        logger.error('Cannot get or create account attributed to video channel ' + actorUrl)
         throw new Error(err)
       }
     }
@@ -171,53 +170,83 @@ async function updateActorInstance (actorInstance: ActorModel, attributes: Activ
   }
 }
 
-type AvatarInfo = { name: string, onDisk: boolean, fileUrl: string }
-async function updateActorAvatarInstance (actor: MActorDefault, info: AvatarInfo, t: Transaction) {
-  if (!info.name) return actor
+type ImageInfo = {
+  name: string
+  fileUrl: string
+  height: number
+  width: number
+  onDisk?: boolean
+}
+async function updateActorImageInstance (actor: MActorImages, type: ActorImageType, imageInfo: ImageInfo | null, t: Transaction) {
+  const oldImageModel = type === ActorImageType.AVATAR
+    ? actor.Avatar
+    : actor.Banner
 
-  if (actor.Avatar) {
+  if (oldImageModel) {
     // Don't update the avatar if the file URL did not change
-    if (info.fileUrl && actor.Avatar.fileUrl === info.fileUrl) return actor
+    if (imageInfo?.fileUrl && oldImageModel.fileUrl === imageInfo.fileUrl) return actor
 
     try {
-      await actor.Avatar.destroy({ transaction: t })
+      await oldImageModel.destroy({ transaction: t })
+
+      setActorImage(actor, type, null)
     } catch (err) {
-      logger.error('Cannot remove old avatar of actor %s.', actor.url, { err })
+      logger.error('Cannot remove old actor image of actor %s.', actor.url, { err })
     }
   }
 
-  const avatar = await AvatarModel.create({
-    filename: info.name,
-    onDisk: info.onDisk,
-    fileUrl: info.fileUrl
-  }, { transaction: t })
+  if (imageInfo) {
+    const imageModel = await ActorImageModel.create({
+      filename: imageInfo.name,
+      onDisk: imageInfo.onDisk ?? false,
+      fileUrl: imageInfo.fileUrl,
+      height: imageInfo.height,
+      width: imageInfo.width,
+      type
+    }, { transaction: t })
 
-  actor.avatarId = avatar.id
-  actor.Avatar = avatar
+    setActorImage(actor, type, imageModel)
+  }
+
+  return actor
+}
+
+async function deleteActorImageInstance (actor: MActorImages, type: ActorImageType, t: Transaction) {
+  try {
+    if (type === ActorImageType.AVATAR) {
+      await actor.Avatar.destroy({ transaction: t })
+
+      actor.avatarId = null
+      actor.Avatar = null
+    } else {
+      await actor.Banner.destroy({ transaction: t })
+
+      actor.bannerId = null
+      actor.Banner = null
+    }
+  } catch (err) {
+    logger.error('Cannot remove old image of actor %s.', actor.url, { err })
+  }
 
   return actor
 }
 
 async function fetchActorTotalItems (url: string) {
-  const options = {
-    uri: url,
-    method: 'GET',
-    json: true,
-    activityPub: true
-  }
-
   try {
-    const { body } = await doRequest<ActivityPubOrderedCollection<unknown>>(options)
-    return body.totalItems ? body.totalItems : 0
+    const { body } = await doJSONRequest<ActivityPubOrderedCollection<unknown>>(url, { activityPub: true })
+
+    return body.totalItems || 0
   } catch (err) {
     logger.warn('Cannot fetch remote actor count %s.', url, { err })
     return 0
   }
 }
 
-function getAvatarInfoIfExists (actorJSON: ActivityPubActor) {
+function getImageInfoIfExists (actorJSON: ActivityPubActor, type: ActorImageType) {
   const mimetypes = MIMETYPES.IMAGE
-  const icon = actorJSON.icon
+  const icon = type === ActorImageType.AVATAR
+    ? actorJSON.icon
+    : actorJSON.image
 
   if (!icon || icon.type !== 'Image' || !isActivityPubUrlValid(icon.url)) return undefined
 
@@ -235,7 +264,10 @@ function getAvatarInfoIfExists (actorJSON: ActivityPubActor) {
 
   return {
     name: uuidv4() + extension,
-    fileUrl: icon.url
+    fileUrl: icon.url,
+    height: icon.height,
+    width: icon.width,
+    type
   }
 }
 
@@ -275,16 +307,7 @@ async function refreshActorIfNeeded <T extends MActorFull | MActorAccountChannel
       actorUrl = actor.url
     }
 
-    const { result, statusCode } = await fetchRemoteActor(actorUrl)
-
-    if (statusCode === 404) {
-      logger.info('Deleting actor %s because there is a 404 in refresh actor.', actor.url)
-      actor.Account
-        ? await actor.Account.destroy()
-        : await actor.VideoChannel.destroy()
-
-      return { actor: undefined, refreshed: false }
-    }
+    const { result } = await fetchRemoteActor(actorUrl)
 
     if (result === undefined) {
       logger.warn('Cannot fetch remote actor in refresh actor.')
@@ -294,15 +317,8 @@ async function refreshActorIfNeeded <T extends MActorFull | MActorAccountChannel
     return sequelizeTypescript.transaction(async t => {
       updateInstanceWithAnother(actor, result.actor)
 
-      if (result.avatar !== undefined) {
-        const avatarInfo = {
-          name: result.avatar.name,
-          fileUrl: result.avatar.fileUrl,
-          onDisk: false
-        }
-
-        await updateActorAvatarInstance(actor, avatarInfo, t)
-      }
+      await updateActorImageInstance(actor, ActorImageType.AVATAR, result.avatar, t)
+      await updateActorImageInstance(actor, ActorImageType.BANNER, result.banner, t)
 
       // Force update
       actor.setDataValue('updatedAt', new Date())
@@ -324,6 +340,15 @@ async function refreshActorIfNeeded <T extends MActorFull | MActorAccountChannel
       return { refreshed: true, actor }
     })
   } catch (err) {
+    if ((err as PeerTubeRequestError).statusCode === HttpStatusCode.NOT_FOUND_404) {
+      logger.info('Deleting actor %s because there is a 404 in refresh actor.', actor.url)
+      actor.Account
+        ? await actor.Account.destroy()
+        : await actor.VideoChannel.destroy()
+
+      return { actor: undefined, refreshed: false }
+    }
+
     logger.warn('Cannot refresh actor %s.', actor.url, { err })
     return { actor, refreshed: false }
   }
@@ -332,16 +357,33 @@ async function refreshActorIfNeeded <T extends MActorFull | MActorAccountChannel
 export {
   getOrCreateActorAndServerAndModel,
   buildActorInstance,
-  setAsyncActorKeys,
+  generateAndSaveActorKeys,
   fetchActorTotalItems,
-  getAvatarInfoIfExists,
+  getImageInfoIfExists,
   updateActorInstance,
+  deleteActorImageInstance,
   refreshActorIfNeeded,
-  updateActorAvatarInstance,
+  updateActorImageInstance,
   addFetchOutboxJob
 }
 
 // ---------------------------------------------------------------------------
+
+function setActorImage (actorModel: MActorImages, type: ActorImageType, imageModel: MActorImage) {
+  const id = imageModel
+    ? imageModel.id
+    : null
+
+  if (type === ActorImageType.AVATAR) {
+    actorModel.avatarId = id
+    actorModel.Avatar = imageModel
+  } else {
+    actorModel.bannerId = id
+    actorModel.Banner = imageModel
+  }
+
+  return actorModel
+}
 
 function saveActorAndServerAndModelIfNotExist (
   result: FetchRemoteActorResult,
@@ -373,24 +415,60 @@ function saveActorAndServerAndModelIfNotExist (
 
     // Avatar?
     if (result.avatar) {
-      const avatar = await AvatarModel.create({
+      const avatar = await ActorImageModel.create({
         filename: result.avatar.name,
         fileUrl: result.avatar.fileUrl,
-        onDisk: false
+        width: result.avatar.width,
+        height: result.avatar.height,
+        onDisk: false,
+        type: ActorImageType.AVATAR
       }, { transaction: t })
 
       actor.avatarId = avatar.id
     }
 
+    // Banner?
+    if (result.banner) {
+      const banner = await ActorImageModel.create({
+        filename: result.banner.name,
+        fileUrl: result.banner.fileUrl,
+        width: result.banner.width,
+        height: result.banner.height,
+        onDisk: false,
+        type: ActorImageType.BANNER
+      }, { transaction: t })
+
+      actor.bannerId = banner.id
+    }
+
     // Force the actor creation, sometimes Sequelize skips the save() when it thinks the instance already exists
     // (which could be false in a retried query)
-    const [ actorCreated ] = await ActorModel.findOrCreate<MActorFullActor>({
+    const [ actorCreated, created ] = await ActorModel.findOrCreate<MActorFullActor>({
       defaults: actor.toJSON(),
       where: {
-        url: actor.url
+        [Op.or]: [
+          {
+            url: actor.url
+          },
+          {
+            serverId: actor.serverId,
+            preferredUsername: actor.preferredUsername
+          }
+        ]
       },
       transaction: t
     })
+
+    // Try to fix non HTTPS accounts of remote instances that fixed their URL afterwards
+    if (created !== true && actorCreated.url !== actor.url) {
+      // Only fix http://example.com/account/djidane to https://example.com/account/djidane
+      if (actorCreated.url.replace(/^http:\/\//, '') !== actor.url.replace(/^https:\/\//, '')) {
+        throw new Error(`Actor from DB with URL ${actorCreated.url} does not correspond to actor ${actor.url}`)
+      }
+
+      actorCreated.url = actor.url
+      await actorCreated.save({ transaction: t })
+    }
 
     if (actorCreated.type === 'Person' || actorCreated.type === 'Application') {
       actorCreated.Account = await saveAccount(actorCreated, result, t) as MAccountDefault
@@ -406,39 +484,37 @@ function saveActorAndServerAndModelIfNotExist (
   }
 }
 
+type ImageResult = {
+  name: string
+  fileUrl: string
+  height: number
+  width: number
+}
+
 type FetchRemoteActorResult = {
   actor: MActor
   name: string
   summary: string
   support?: string
   playlists?: string
-  avatar?: {
-    name: string
-    fileUrl: string
-  }
+  avatar?: ImageResult
+  banner?: ImageResult
   attributedTo: ActivityPubAttributedTo[]
 }
 async function fetchRemoteActor (actorUrl: string): Promise<{ statusCode?: number, result: FetchRemoteActorResult }> {
-  const options = {
-    uri: actorUrl,
-    method: 'GET',
-    json: true,
-    activityPub: true
-  }
-
   logger.info('Fetching remote actor %s.', actorUrl)
 
-  const requestResult = await doRequest<ActivityPubActor>(options)
+  const requestResult = await doJSONRequest<ActivityPubActor>(actorUrl, { activityPub: true })
   const actorJSON = requestResult.body
 
   if (sanitizeAndCheckActorObject(actorJSON) === false) {
     logger.debug('Remote actor JSON is not valid.', { actorJSON })
-    return { result: undefined, statusCode: requestResult.response.statusCode }
+    return { result: undefined, statusCode: requestResult.statusCode }
   }
 
   if (checkUrlsSameHost(actorJSON.id, actorUrl) !== true) {
     logger.warn('Actor url %s has not the same host than its AP id %s', actorUrl, actorJSON.id)
-    return { result: undefined, statusCode: requestResult.response.statusCode }
+    return { result: undefined, statusCode: requestResult.statusCode }
   }
 
   const followersCount = await fetchActorTotalItems(actorJSON.followers)
@@ -462,15 +538,17 @@ async function fetchRemoteActor (actorUrl: string): Promise<{ statusCode?: numbe
       : null
   })
 
-  const avatarInfo = await getAvatarInfoIfExists(actorJSON)
+  const avatarInfo = getImageInfoIfExists(actorJSON, ActorImageType.AVATAR)
+  const bannerInfo = getImageInfoIfExists(actorJSON, ActorImageType.BANNER)
 
   const name = actorJSON.name || actorJSON.preferredUsername
   return {
-    statusCode: requestResult.response.statusCode,
+    statusCode: requestResult.statusCode,
     result: {
       actor,
       name,
       avatar: avatarInfo,
+      banner: bannerInfo,
       summary: actorJSON.summary,
       support: actorJSON.support,
       playlists: actorJSON.playlists,

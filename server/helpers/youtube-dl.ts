@@ -1,12 +1,16 @@
+import { createWriteStream } from 'fs'
+import { ensureDir, move, pathExists, remove, writeFile } from 'fs-extra'
+import got from 'got'
+import { join } from 'path'
+import { CONFIG } from '@server/initializers/config'
+import { HttpStatusCode } from '../../shared/core-utils/miscs/http-error-codes'
+import { VideoResolution } from '../../shared/models/videos'
 import { CONSTRAINTS_FIELDS, VIDEO_CATEGORIES, VIDEO_LANGUAGES, VIDEO_LICENCES } from '../initializers/constants'
+import { getEnabledResolutions } from '../lib/video-transcoding'
+import { peertubeTruncate, pipelinePromise, root } from './core-utils'
+import { isVideoFileExtnameValid } from './custom-validators/videos'
 import { logger } from './logger'
 import { generateVideoImportTmpPath } from './utils'
-import { join } from 'path'
-import { peertubeTruncate, root } from './core-utils'
-import { ensureDir, remove, writeFile } from 'fs-extra'
-import * as request from 'request'
-import { createWriteStream } from 'fs'
-import { CONFIG } from '@server/initializers/config'
 
 export type YoutubeDLInfo = {
   name?: string
@@ -17,7 +21,7 @@ export type YoutubeDLInfo = {
   nsfw?: boolean
   tags?: string[]
   thumbnailUrl?: string
-  fileExt?: string
+  ext?: string
   originallyPublishedAt?: Date
 }
 
@@ -34,7 +38,13 @@ const processOptions = {
 function getYoutubeDLInfo (url: string, opts?: string[]): Promise<YoutubeDLInfo> {
   return new Promise<YoutubeDLInfo>((res, rej) => {
     let args = opts || [ '-j', '--flat-playlist' ]
+
+    if (CONFIG.IMPORT.VIDEOS.HTTP.FORCE_IPV4) {
+      args.push('--force-ipv4')
+    }
+
     args = wrapWithProxyOptions(args)
+    args = [ '-f', getYoutubeDLVideoFormat() ].concat(args)
 
     safeGetYoutubeDL()
       .then(youtubeDL => {
@@ -66,7 +76,7 @@ function getYoutubeDLSubs (url: string, opts?: object): Promise<YoutubeDLSubs> {
           logger.debug('Get subtitles from youtube dl.', { url, files })
 
           const subtitles = files.reduce((acc, filename) => {
-            const matched = filename.match(/\.([a-z]{2})\.(vtt|ttml)/i)
+            const matched = filename.match(/\.([a-z]{2})(-[a-z]+)?\.(vtt|ttml)/i)
             if (!matched || !matched[1]) return acc
 
             return [
@@ -86,42 +96,85 @@ function getYoutubeDLSubs (url: string, opts?: object): Promise<YoutubeDLSubs> {
   })
 }
 
-function downloadYoutubeDLVideo (url: string, extension: string, timeout: number) {
-  const path = generateVideoImportTmpPath(url, extension)
+function getYoutubeDLVideoFormat () {
+  /**
+   * list of format selectors in order or preference
+   * see https://github.com/ytdl-org/youtube-dl#format-selection
+   *
+   * case #1 asks for a mp4 using h264 (avc1) and the exact resolution in the hope
+   * of being able to do a "quick-transcode"
+   * case #2 is the first fallback. No "quick-transcode" means we can get anything else (like vp9)
+   * case #3 is the resolution-degraded equivalent of #1, and already a pretty safe fallback
+   *
+   * in any case we avoid AV1, see https://github.com/Chocobozzz/PeerTube/issues/3499
+   **/
+  const enabledResolutions = getEnabledResolutions('vod')
+  const resolution = enabledResolutions.length === 0
+    ? VideoResolution.H_720P
+    : Math.max(...enabledResolutions)
+
+  return [
+    `bestvideo[vcodec^=avc1][height=${resolution}]+bestaudio[ext=m4a]`, // case #1
+    `bestvideo[vcodec!*=av01][vcodec!*=vp9.2][height=${resolution}]+bestaudio`, // case #2
+    `bestvideo[vcodec^=avc1][height<=${resolution}]+bestaudio[ext=m4a]`, // case #3
+    `bestvideo[vcodec!*=av01][vcodec!*=vp9.2]+bestaudio`,
+    'best[vcodec!*=av01][vcodec!*=vp9.2]', // case fallback for known formats
+    'best' // Ultimate fallback
+  ].join('/')
+}
+
+function downloadYoutubeDLVideo (url: string, fileExt: string, timeout: number) {
+  // Leave empty the extension, youtube-dl will add it
+  const pathWithoutExtension = generateVideoImportTmpPath(url, '')
+
   let timer
 
-  logger.info('Importing youtubeDL video %s to %s', url, path)
+  logger.info('Importing youtubeDL video %s to %s', url, pathWithoutExtension)
 
-  let options = [ '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best', '-o', path ]
+  let options = [ '-f', getYoutubeDLVideoFormat(), '-o', pathWithoutExtension ]
   options = wrapWithProxyOptions(options)
 
   if (process.env.FFMPEG_PATH) {
     options = options.concat([ '--ffmpeg-location', process.env.FFMPEG_PATH ])
   }
 
+  logger.debug('YoutubeDL options for %s.', url, { options })
+
   return new Promise<string>((res, rej) => {
     safeGetYoutubeDL()
       .then(youtubeDL => {
-        youtubeDL.exec(url, options, processOptions, err => {
+        youtubeDL.exec(url, options, processOptions, async err => {
           clearTimeout(timer)
 
-          if (err) {
-            remove(path)
-              .catch(err => logger.error('Cannot delete path on YoutubeDL error.', { err }))
+          try {
+            // If youtube-dl did not guess an extension for our file, just use .mp4 as default
+            if (await pathExists(pathWithoutExtension)) {
+              await move(pathWithoutExtension, pathWithoutExtension + '.mp4')
+            }
 
+            const path = await guessVideoPathWithExtension(pathWithoutExtension, fileExt)
+
+            if (err) {
+              remove(path)
+                .catch(err => logger.error('Cannot delete path on YoutubeDL error.', { err }))
+
+              return rej(err)
+            }
+
+            return res(path)
+          } catch (err) {
             return rej(err)
           }
-
-          return res(path)
         })
 
         timer = setTimeout(() => {
           const err = new Error('YoutubeDL download timeout.')
 
-          remove(path)
+          guessVideoPathWithExtension(pathWithoutExtension, fileExt)
+            .then(path => remove(path))
             .finally(() => rej(err))
             .catch(err => {
-              logger.error('Cannot remove %s in youtubeDL timeout.', path, { err })
+              logger.error('Cannot remove file in youtubeDL timeout.', { err })
               return rej(err)
             })
         }, timeout)
@@ -138,54 +191,36 @@ async function updateYoutubeDLBinary () {
   const binDirectory = join(root(), 'node_modules', 'youtube-dl', 'bin')
   const bin = join(binDirectory, 'youtube-dl')
   const detailsPath = join(binDirectory, 'details')
-  const url = 'https://yt-dl.org/downloads/latest/youtube-dl'
+  const url = process.env.YOUTUBE_DL_DOWNLOAD_HOST || 'https://yt-dl.org/downloads/latest/youtube-dl'
 
   await ensureDir(binDirectory)
 
-  return new Promise(res => {
-    request.get(url, { followRedirect: false }, (err, result) => {
-      if (err) {
-        logger.error('Cannot update youtube-dl.', { err })
-        return res()
-      }
+  try {
+    const result = await got(url, { followRedirect: false })
 
-      if (result.statusCode !== 302) {
-        logger.error('youtube-dl update error: did not get redirect for the latest version link. Status %d', result.statusCode)
-        return res()
-      }
+    if (result.statusCode !== HttpStatusCode.FOUND_302) {
+      logger.error('youtube-dl update error: did not get redirect for the latest version link. Status %d', result.statusCode)
+      return
+    }
 
-      const url = result.headers.location
-      const downloadFile = request.get(url)
-      const newVersion = /yt-dl\.org\/downloads\/(\d{4}\.\d\d\.\d\d(\.\d)?)\/youtube-dl/.exec(url)[1]
+    const newUrl = result.headers.location
+    const newVersion = /yt-dl\.org\/downloads\/(\d{4}\.\d\d\.\d\d(\.\d)?)\/youtube-dl/.exec(newUrl)[1]
 
-      downloadFile.on('response', result => {
-        if (result.statusCode !== 200) {
-          logger.error('Cannot update youtube-dl: new version response is not 200, it\'s %d.', result.statusCode)
-          return res()
-        }
+    const downloadFileStream = got.stream(newUrl)
+    const writeStream = createWriteStream(bin, { mode: 493 })
 
-        downloadFile.pipe(createWriteStream(bin, { mode: 493 }))
-      })
+    await pipelinePromise(
+      downloadFileStream,
+      writeStream
+    )
 
-      downloadFile.on('error', err => {
-        logger.error('youtube-dl update error.', { err })
-        return res()
-      })
+    const details = JSON.stringify({ version: newVersion, path: bin, exec: 'youtube-dl' })
+    await writeFile(detailsPath, details, { encoding: 'utf8' })
 
-      downloadFile.on('end', () => {
-        const details = JSON.stringify({ version: newVersion, path: bin, exec: 'youtube-dl' })
-        writeFile(detailsPath, details, { encoding: 'utf8' }, err => {
-          if (err) {
-            logger.error('youtube-dl update error: cannot write details.', { err })
-            return res()
-          }
-
-          logger.info('youtube-dl updated to version %s.', newVersion)
-          return res()
-        })
-      })
-    })
-  })
+    logger.info('youtube-dl updated to version %s.', newVersion)
+  } catch (err) {
+    logger.error('Cannot update youtube-dl.', { err })
+  }
 }
 
 async function safeGetYoutubeDL () {
@@ -225,6 +260,7 @@ function buildOriginallyPublishedAt (obj: any) {
 
 export {
   updateYoutubeDLBinary,
+  getYoutubeDLVideoFormat,
   downloadYoutubeDLVideo,
   getYoutubeDLSubs,
   getYoutubeDLInfo,
@@ -233,6 +269,22 @@ export {
 }
 
 // ---------------------------------------------------------------------------
+
+async function guessVideoPathWithExtension (tmpPath: string, sourceExt: string) {
+  if (!isVideoFileExtnameValid(sourceExt)) {
+    throw new Error('Invalid video extension ' + sourceExt)
+  }
+
+  const extensions = [ sourceExt, '.mp4', '.mkv', '.webm' ]
+
+  for (const extension of extensions) {
+    const path = tmpPath + extension
+
+    if (await pathExists(path)) return path
+  }
+
+  throw new Error('Cannot guess path of ' + tmpPath)
+}
 
 function normalizeObject (obj: any) {
   const newObj: any = {}
@@ -264,7 +316,7 @@ function buildVideoInfo (obj: any): YoutubeDLInfo {
     tags: getTags(obj.tags),
     thumbnailUrl: obj.thumbnail || undefined,
     originallyPublishedAt: buildOriginallyPublishedAt(obj),
-    fileExt: obj.ext
+    ext: obj.ext
   }
 }
 

@@ -1,7 +1,9 @@
 import * as express from 'express'
+import { Hooks } from '@server/lib/plugins/hooks'
 import { getServerActor } from '@server/models/application/application'
-import { MChannelAccountDefault } from '@server/types/models'
-import { VideoChannelCreate, VideoChannelUpdate } from '../../../shared'
+import { MChannelBannerAccountDefault } from '@server/types/models'
+import { ActorImageType, VideoChannelCreate, VideoChannelUpdate } from '../../../shared'
+import { HttpStatusCode } from '../../../shared/core-utils/miscs/http-error-codes'
 import { auditLoggerFactory, getAuditIdFromRes, VideoChannelAuditView } from '../../helpers/audit-logger'
 import { resetSequelizeInstance } from '../../helpers/database-utils'
 import { buildNSFWFilter, createReqFiles, getCountVideos, isUserAbleToSearchRemoteURI } from '../../helpers/express-utils'
@@ -10,9 +12,8 @@ import { getFormattedObjects } from '../../helpers/utils'
 import { CONFIG } from '../../initializers/config'
 import { MIMETYPES } from '../../initializers/constants'
 import { sequelizeTypescript } from '../../initializers/database'
-import { setAsyncActorKeys } from '../../lib/activitypub/actor'
 import { sendUpdateActor } from '../../lib/activitypub/send'
-import { updateActorAvatarFile } from '../../lib/avatar'
+import { deleteLocalActorImageFile, updateLocalActorImageFile } from '../../lib/actor-image'
 import { JobQueue } from '../../lib/job-queue'
 import { createLocalVideoChannel, federateAllVideosOfChannel } from '../../lib/video-channel'
 import {
@@ -32,7 +33,7 @@ import {
   videoPlaylistsSortValidator
 } from '../../middlewares'
 import { videoChannelsNameWithHostValidator, videoChannelsOwnSearchValidator, videosSortValidator } from '../../middlewares/validators'
-import { updateAvatarValidator } from '../../middlewares/validators/avatar'
+import { updateAvatarValidator, updateBannerValidator } from '../../middlewares/validators/actor-image'
 import { commonVideoPlaylistFiltersValidator } from '../../middlewares/validators/videos/video-playlists'
 import { AccountModel } from '../../models/account/account'
 import { VideoModel } from '../../models/video/video'
@@ -41,6 +42,7 @@ import { VideoPlaylistModel } from '../../models/video/video-playlist'
 
 const auditLogger = auditLoggerFactory('channels')
 const reqAvatarFile = createReqFiles([ 'avatarfile' ], MIMETYPES.IMAGE.MIMETYPE_EXT, { avatarfile: CONFIG.STORAGE.TMP_DIR })
+const reqBannerFile = createReqFiles([ 'bannerfile' ], MIMETYPES.IMAGE.MIMETYPE_EXT, { bannerfile: CONFIG.STORAGE.TMP_DIR })
 
 const videoChannelRouter = express.Router()
 
@@ -66,6 +68,29 @@ videoChannelRouter.post('/:nameWithHost/avatar/pick',
   asyncMiddleware(videoChannelsUpdateValidator),
   updateAvatarValidator,
   asyncMiddleware(updateVideoChannelAvatar)
+)
+
+videoChannelRouter.post('/:nameWithHost/banner/pick',
+  authenticate,
+  reqBannerFile,
+  // Check the rights
+  asyncMiddleware(videoChannelsUpdateValidator),
+  updateBannerValidator,
+  asyncMiddleware(updateVideoChannelBanner)
+)
+
+videoChannelRouter.delete('/:nameWithHost/avatar',
+  authenticate,
+  // Check the rights
+  asyncMiddleware(videoChannelsUpdateValidator),
+  asyncMiddleware(deleteVideoChannelAvatar)
+)
+
+videoChannelRouter.delete('/:nameWithHost/banner',
+  authenticate,
+  // Check the rights
+  asyncMiddleware(videoChannelsUpdateValidator),
+  asyncMiddleware(deleteVideoChannelBanner)
 )
 
 videoChannelRouter.put('/:nameWithHost',
@@ -126,20 +151,43 @@ async function listVideoChannels (req: express.Request, res: express.Response) {
   return res.json(getFormattedObjects(resultList.data, resultList.total))
 }
 
+async function updateVideoChannelBanner (req: express.Request, res: express.Response) {
+  const bannerPhysicalFile = req.files['bannerfile'][0]
+  const videoChannel = res.locals.videoChannel
+  const oldVideoChannelAuditKeys = new VideoChannelAuditView(videoChannel.toFormattedJSON())
+
+  const banner = await updateLocalActorImageFile(videoChannel, bannerPhysicalFile, ActorImageType.BANNER)
+
+  auditLogger.update(getAuditIdFromRes(res), new VideoChannelAuditView(videoChannel.toFormattedJSON()), oldVideoChannelAuditKeys)
+
+  return res.json({ banner: banner.toFormattedJSON() })
+}
 async function updateVideoChannelAvatar (req: express.Request, res: express.Response) {
   const avatarPhysicalFile = req.files['avatarfile'][0]
   const videoChannel = res.locals.videoChannel
   const oldVideoChannelAuditKeys = new VideoChannelAuditView(videoChannel.toFormattedJSON())
 
-  const avatar = await updateActorAvatarFile(avatarPhysicalFile, videoChannel)
+  const avatar = await updateLocalActorImageFile(videoChannel, avatarPhysicalFile, ActorImageType.AVATAR)
 
   auditLogger.update(getAuditIdFromRes(res), new VideoChannelAuditView(videoChannel.toFormattedJSON()), oldVideoChannelAuditKeys)
 
-  return res
-    .json({
-      avatar: avatar.toFormattedJSON()
-    })
-    .end()
+  return res.json({ avatar: avatar.toFormattedJSON() })
+}
+
+async function deleteVideoChannelAvatar (req: express.Request, res: express.Response) {
+  const videoChannel = res.locals.videoChannel
+
+  await deleteLocalActorImageFile(videoChannel, ActorImageType.AVATAR)
+
+  return res.sendStatus(HttpStatusCode.NO_CONTENT_204)
+}
+
+async function deleteVideoChannelBanner (req: express.Request, res: express.Response) {
+  const videoChannel = res.locals.videoChannel
+
+  await deleteLocalActorImageFile(videoChannel, ActorImageType.BANNER)
+
+  return res.sendStatus(HttpStatusCode.NO_CONTENT_204)
 }
 
 async function addVideoChannel (req: express.Request, res: express.Response) {
@@ -151,8 +199,8 @@ async function addVideoChannel (req: express.Request, res: express.Response) {
     return createLocalVideoChannel(videoChannelInfo, account, t)
   })
 
-  setAsyncActorKeys(videoChannelCreated.Actor)
-    .catch(err => logger.error('Cannot set async actor keys for account %s.', videoChannelCreated.Actor.url, { err }))
+  const payload = { actorId: videoChannelCreated.actorId }
+  await JobQueue.Instance.createJobWithPromise({ type: 'actor-keys', payload })
 
   auditLogger.create(getAuditIdFromRes(res), new VideoChannelAuditView(videoChannelCreated.toFormattedJSON()))
   logger.info('Video channel %s created.', videoChannelCreated.Actor.url)
@@ -161,7 +209,7 @@ async function addVideoChannel (req: express.Request, res: express.Response) {
     videoChannel: {
       id: videoChannelCreated.id
     }
-  }).end()
+  })
 }
 
 async function updateVideoChannel (req: express.Request, res: express.Response) {
@@ -190,7 +238,7 @@ async function updateVideoChannel (req: express.Request, res: express.Response) 
         }
       }
 
-      const videoChannelInstanceUpdated = await videoChannelInstance.save(sequelizeOptions) as MChannelAccountDefault
+      const videoChannelInstanceUpdated = await videoChannelInstance.save(sequelizeOptions) as MChannelBannerAccountDefault
       await sendUpdateActor(videoChannelInstanceUpdated, t)
 
       auditLogger.update(
@@ -212,7 +260,7 @@ async function updateVideoChannel (req: express.Request, res: express.Response) 
     throw err
   }
 
-  res.type('json').status(204).end()
+  res.type('json').status(HttpStatusCode.NO_CONTENT_204).end()
 
   // Don't process in a transaction, and after the response because it could be long
   if (doBulkVideoUpdate) {
@@ -232,17 +280,17 @@ async function removeVideoChannel (req: express.Request, res: express.Response) 
     logger.info('Video channel %s deleted.', videoChannelInstance.Actor.url)
   })
 
-  return res.type('json').status(204).end()
+  return res.type('json').status(HttpStatusCode.NO_CONTENT_204).end()
 }
 
 async function getVideoChannel (req: express.Request, res: express.Response) {
-  const videoChannelWithVideos = await VideoChannelModel.loadAndPopulateAccountAndVideos(res.locals.videoChannel.id)
+  const videoChannel = res.locals.videoChannel
 
-  if (videoChannelWithVideos.isOutdated()) {
-    JobQueue.Instance.createJob({ type: 'activitypub-refresher', payload: { type: 'actor', url: videoChannelWithVideos.Actor.url } })
+  if (videoChannel.isOutdated()) {
+    JobQueue.Instance.createJob({ type: 'activitypub-refresher', payload: { type: 'actor', url: videoChannel.Actor.url } })
   }
 
-  return res.json(videoChannelWithVideos.toFormattedJSON())
+  return res.json(videoChannel.toFormattedJSON())
 }
 
 async function listVideoChannelPlaylists (req: express.Request, res: express.Response) {
@@ -265,7 +313,7 @@ async function listVideoChannelVideos (req: express.Request, res: express.Respon
   const followerActorId = isUserAbleToSearchRemoteURI(res) ? null : undefined
   const countVideos = getCountVideos(req)
 
-  const resultList = await VideoModel.listForApi({
+  const apiOptions = await Hooks.wrapObject({
     followerActorId,
     start: req.query.start,
     count: req.query.count,
@@ -282,7 +330,13 @@ async function listVideoChannelVideos (req: express.Request, res: express.Respon
     videoChannelId: videoChannelInstance.id,
     user: res.locals.oauth ? res.locals.oauth.token.User : undefined,
     countVideos
-  })
+  }, 'filter:api.video-channels.videos.list.params')
+
+  const resultList = await Hooks.wrapPromiseFun(
+    VideoModel.listForApi,
+    apiOptions,
+    'filter:api.video-channels.videos.list.result'
+  )
 
   return res.json(getFormattedObjects(resultList.data, resultList.total))
 }

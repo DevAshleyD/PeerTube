@@ -1,28 +1,22 @@
-import { Transaction } from 'sequelize'
-import { sendLike, sendUndoDislike, sendUndoLike } from './send'
-import { VideoRateType } from '../../../shared/models/videos'
 import * as Bluebird from 'bluebird'
-import { getOrCreateActorAndServerAndModel } from './actor'
-import { AccountVideoRateModel } from '../../models/account/account-video-rate'
+import { Transaction } from 'sequelize'
+import { doJSONRequest } from '@server/helpers/requests'
+import { VideoRateType } from '../../../shared/models/videos'
+import { checkUrlsSameHost, getAPId } from '../../helpers/activitypub'
 import { logger } from '../../helpers/logger'
 import { CRAWL_REQUEST_CONCURRENCY } from '../../initializers/constants'
-import { doRequest } from '../../helpers/requests'
-import { checkUrlsSameHost, getAPId } from '../../helpers/activitypub'
-import { getVideoDislikeActivityPubUrl, getVideoLikeActivityPubUrl } from './url'
-import { sendDislike } from './send/send-dislike'
+import { AccountVideoRateModel } from '../../models/account/account-video-rate'
 import { MAccountActor, MActorUrl, MVideo, MVideoAccountLight, MVideoId } from '../../types/models'
+import { getOrCreateActorAndServerAndModel } from './actor'
+import { sendLike, sendUndoDislike, sendUndoLike } from './send'
+import { sendDislike } from './send/send-dislike'
+import { getVideoDislikeActivityPubUrlByLocalActor, getVideoLikeActivityPubUrlByLocalActor } from './url'
 
 async function createRates (ratesUrl: string[], video: MVideo, rate: VideoRateType) {
-  let rateCounts = 0
-
   await Bluebird.map(ratesUrl, async rateUrl => {
     try {
       // Fetch url
-      const { body } = await doRequest<any>({
-        uri: rateUrl,
-        json: true,
-        activityPub: true
-      })
+      const { body } = await doJSONRequest<any>(rateUrl, { activityPub: true })
       if (!body || !body.actor) throw new Error('Body or body actor is invalid')
 
       const actorUrl = getAPId(body.actor)
@@ -43,21 +37,12 @@ async function createRates (ratesUrl: string[], video: MVideo, rate: VideoRateTy
         url: body.id
       }
 
-      const created = await AccountVideoRateModel.upsert(entry)
-
-      if (created) rateCounts += 1
+      // Video "likes"/"dislikes" will be updated by the caller
+      await AccountVideoRateModel.upsert(entry)
     } catch (err) {
       logger.warn('Cannot add rate %s.', rateUrl, { err })
     }
   }, { concurrency: CRAWL_REQUEST_CONCURRENCY })
-
-  logger.info('Adding %d %s to video %s.', rateCounts, rate, video.uuid)
-
-  // This is "likes" and "dislikes"
-  if (rateCounts !== 0) {
-    const field = rate === 'like' ? 'likes' : 'dislikes'
-    await video.increment(field, { by: rateCounts })
-  }
 }
 
 async function sendVideoRateChange (
@@ -82,14 +67,14 @@ async function sendVideoRateChange (
   if (dislikes > 0) await sendDislike(actor, video, t)
 }
 
-function getRateUrl (rateType: VideoRateType, actor: MActorUrl, video: MVideoId) {
+function getLocalRateUrl (rateType: VideoRateType, actor: MActorUrl, video: MVideoId) {
   return rateType === 'like'
-    ? getVideoLikeActivityPubUrl(actor, video)
-    : getVideoDislikeActivityPubUrl(actor, video)
+    ? getVideoLikeActivityPubUrlByLocalActor(actor, video)
+    : getVideoDislikeActivityPubUrlByLocalActor(actor, video)
 }
 
 export {
-  getRateUrl,
+  getLocalRateUrl,
   createRates,
   sendVideoRateChange
 }

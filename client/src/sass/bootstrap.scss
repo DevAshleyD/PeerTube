@@ -9,6 +9,10 @@ $icon-font-path: '~@neos21/bootstrap3-glyphicons/assets/fonts/';
   animation: spin .7s infinite linear;
 }
 
+.glyphicon-duplicate {
+  font-size: 70%;
+}
+
 .flex-auto {
   flex: auto;
 }
@@ -44,6 +48,10 @@ $icon-font-path: '~@neos21/bootstrap3-glyphicons/assets/fonts/';
   z-index: inherit !important;
 }
 
+.btn-group > .btn:not(:first-child) {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
 
 .dropdown-menu {
   z-index: z(dropdown) + 1 !important;
@@ -65,6 +73,10 @@ $icon-font-path: '~@neos21/bootstrap3-glyphicons/assets/fonts/';
       opacity: .9;
     }
 
+    &:active {
+      color: pvar(--mainForegroundColor) !important;
+    }
+
     &::after {
       display: none;
     }
@@ -80,6 +92,9 @@ $icon-font-path: '~@neos21/bootstrap3-glyphicons/assets/fonts/';
   }
 }
 
+.badge {
+  line-height: 1.1;
+}
 
 @media screen and (min-width: #{breakpoint(md)}) {
   .modal:before {
@@ -104,6 +119,7 @@ $icon-font-path: '~@neos21/bootstrap3-glyphicons/assets/fonts/';
 
   .modal-content {
     background-color: pvar(--mainBackgroundColor);
+    word-break: break-all;
   }
 
   .modal-header {
@@ -351,5 +367,27 @@ ngb-tooltip-window {
 
   input:placeholder-shown + .form-control-clear {
     display: none;
+  }
+}
+
+.callout {
+  padding: 1.25rem;
+  border: 1px solid #eee;
+  border-radius: .25rem;
+
+  & > label {
+    position: relative;
+    top: -5px;
+    left: -10px;
+    color: #6c757d !important;
+  }
+
+  &:not(.callout-light) {
+    border-left-width: .25rem;
+  }
+
+  &.callout-info {
+    border-color: pvar(--mainColorLightest);
+    border-left-color: pvar(--mainColor);
   }
 }

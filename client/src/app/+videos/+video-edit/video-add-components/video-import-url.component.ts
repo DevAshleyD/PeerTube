@@ -1,12 +1,13 @@
 import { map, switchMap } from 'rxjs/operators'
-import { Component, EventEmitter, OnInit, Output } from '@angular/core'
+import { AfterViewInit, Component, EventEmitter, OnInit, Output } from '@angular/core'
 import { Router } from '@angular/router'
-import { AuthService, CanComponentDeactivate, Notifier, ServerService } from '@app/core'
+import { AuthService, CanComponentDeactivate, HooksService, Notifier, ServerService } from '@app/core'
 import { getAbsoluteAPIUrl, scrollToTop } from '@app/helpers'
 import { FormValidatorService } from '@app/shared/shared-forms'
 import { VideoCaptionService, VideoEdit, VideoImportService, VideoService } from '@app/shared/shared-main'
 import { LoadingBarService } from '@ngx-loading-bar/core'
 import { VideoPrivacy, VideoUpdate } from '@shared/models'
+import { hydrateFormFromVideo } from '../shared/video-edit-utils'
 import { VideoSend } from './video-send'
 
 @Component({
@@ -17,7 +18,7 @@ import { VideoSend } from './video-send'
     './video-send.scss'
   ]
 })
-export class VideoImportUrlComponent extends VideoSend implements OnInit, CanComponentDeactivate {
+export class VideoImportUrlComponent extends VideoSend implements OnInit, AfterViewInit, CanComponentDeactivate {
   @Output() firstStepDone = new EventEmitter<string>()
   @Output() firstStepError = new EventEmitter<void>()
 
@@ -41,13 +42,18 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
     protected videoService: VideoService,
     protected videoCaptionService: VideoCaptionService,
     private router: Router,
-    private videoImportService: VideoImportService
-    ) {
+    private videoImportService: VideoImportService,
+    private hooks: HooksService
+  ) {
     super()
   }
 
   ngOnInit () {
     super.ngOnInit()
+  }
+
+  ngAfterViewInit () {
+    this.hooks.runAction('action:video-url-import.init', 'video-edit')
   }
 
   canDeactivate () {
@@ -62,7 +68,7 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
     this.isImportingVideo = true
 
     const videoUpdate: VideoUpdate = {
-      privacy: this.firstStepPrivacyId,
+      privacy: VideoPrivacy.PRIVATE,
       waitTranscoding: false,
       commentsEnabled: true,
       downloadEnabled: true,
@@ -102,6 +108,7 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
             this.video = new VideoEdit(Object.assign(video, {
               commentsEnabled: videoUpdate.commentsEnabled,
               downloadEnabled: videoUpdate.downloadEnabled,
+              privacy: { id: this.firstStepPrivacyId },
               support: null,
               thumbnailUrl,
               previewUrl
@@ -109,7 +116,7 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
 
             this.videoCaptions = videoCaptions
 
-            this.hydrateFormFromVideo()
+            hydrateFormFromVideo(this.form, this.video, true)
           },
 
           err => {
@@ -137,7 +144,7 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
             this.isUpdatingVideo = false
             this.notifier.success($localize`Video to import updated.`)
 
-            this.router.navigate([ '/my-account', 'video-imports' ])
+            this.router.navigate([ '/my-library', 'video-imports' ])
           },
 
           err => {
@@ -146,31 +153,5 @@ export class VideoImportUrlComponent extends VideoSend implements OnInit, CanCom
             console.error(err)
           }
         )
-
-  }
-
-  private hydrateFormFromVideo () {
-    this.form.patchValue(this.video.toFormPatch())
-
-    const objects = [
-      {
-        url: 'thumbnailUrl',
-        name: 'thumbnailfile'
-      },
-      {
-        url: 'previewUrl',
-        name: 'previewfile'
-      }
-    ]
-
-    for (const obj of objects) {
-      fetch(this.video[obj.url])
-        .then(response => response.blob())
-        .then(data => {
-          this.form.patchValue({
-            [ obj.name ]: data
-          })
-        })
-    }
   }
 }

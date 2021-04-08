@@ -5,11 +5,11 @@ import { sequelizeTypescript } from '../../../initializers/database'
 import { ActorModel } from '../../../models/activitypub/actor'
 import { VideoModel } from '../../../models/video/video'
 import { VideoCommentModel } from '../../../models/video/video-comment'
-import { markCommentAsDeleted } from '../../video-comment'
-import { forwardVideoRelatedActivity } from '../send/utils'
 import { VideoPlaylistModel } from '../../../models/video/video-playlist'
 import { APProcessorOptions } from '../../../types/activitypub-processor.model'
-import { MAccountActor, MActor, MActorSignature, MChannelActor, MChannelActorAccountActor } from '../../../types/models'
+import { MAccountActor, MActor, MActorSignature, MChannelActor, MCommentOwnerVideo } from '../../../types/models'
+import { markCommentAsDeleted } from '../../video-comment'
+import { forwardVideoRelatedActivity } from '../send/utils'
 
 async function processDeleteActivity (options: APProcessorOptions<ActivityDelete>) {
   const { activity, byActor } = options
@@ -30,9 +30,7 @@ async function processDeleteActivity (options: APProcessorOptions<ActivityDelete
     } else if (byActorFull.type === 'Group') {
       if (!byActorFull.VideoChannel) throw new Error('Actor ' + byActorFull.url + ' is a group but we cannot find it in database.')
 
-      const channelToDelete = byActorFull.VideoChannel as MChannelActorAccountActor
-      channelToDelete.Actor = byActorFull
-
+      const channelToDelete = Object.assign({}, byActorFull.VideoChannel, { Actor: byActorFull })
       return retryTransactionWrapper(processDeleteVideoChannel, channelToDelete)
     }
   }
@@ -121,7 +119,10 @@ async function processDeleteVideoChannel (videoChannelToRemove: MChannelActor) {
   logger.info('Remote video channel %s removed.', videoChannelToRemove.Actor.url)
 }
 
-function processDeleteVideoComment (byActor: MActorSignature, videoComment: VideoCommentModel, activity: ActivityDelete) {
+function processDeleteVideoComment (byActor: MActorSignature, videoComment: MCommentOwnerVideo, activity: ActivityDelete) {
+  // Already deleted
+  if (videoComment.isDeleted()) return
+
   logger.debug('Removing remote video comment "%s".', videoComment.url)
 
   return sequelizeTypescript.transaction(async t => {

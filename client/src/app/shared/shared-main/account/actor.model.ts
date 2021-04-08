@@ -1,17 +1,20 @@
-import { Actor as ActorServer, Avatar } from '@shared/models'
+import { Actor as ActorServer, ActorImage } from '@shared/models'
 import { getAbsoluteAPIUrl } from '@app/helpers'
 
 export abstract class Actor implements ActorServer {
   id: number
-  url: string
   name: string
+
   host: string
+  url: string
+
   followingCount: number
   followersCount: number
+
   createdAt: Date | string
   updatedAt: Date | string
-  avatar: Avatar
 
+  avatar: ActorImage
   avatarUrl: string
 
   isLocal: boolean
@@ -25,11 +28,7 @@ export abstract class Actor implements ActorServer {
       return absoluteAPIUrl + actor.avatar.path
     }
 
-    return this.GET_DEFAULT_AVATAR_URL()
-  }
-
-  static GET_DEFAULT_AVATAR_URL () {
-    return window.location.origin + '/client/assets/images/default-avatar.png'
+    return ''
   }
 
   static CREATE_BY_STRING (accountName: string, host: string, forceHostname = false) {
@@ -48,11 +47,11 @@ export abstract class Actor implements ActorServer {
     return host.trim() === thisHost
   }
 
-  protected constructor (hash: ActorServer) {
+  protected constructor (hash: Partial<ActorServer>) {
     this.id = hash.id
-    this.url = hash.url
-    this.name = hash.name
-    this.host = hash.host
+    this.url = hash.url ?? ''
+    this.name = hash.name ?? ''
+    this.host = hash.host ?? ''
     this.followingCount = hash.followingCount
     this.followersCount = hash.followersCount
 
@@ -61,17 +60,5 @@ export abstract class Actor implements ActorServer {
 
     this.avatar = hash.avatar
     this.isLocal = Actor.IS_LOCAL(this.host)
-
-    this.updateComputedAttributes()
-  }
-
-  updateAvatar (newAvatar: Avatar) {
-    this.avatar = newAvatar
-
-    this.updateComputedAttributes()
-  }
-
-  private updateComputedAttributes () {
-    this.avatarUrl = Actor.GET_ACTOR_AVATAR_URL(this)
   }
 }

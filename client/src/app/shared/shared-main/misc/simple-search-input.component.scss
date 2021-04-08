@@ -1,0 +1,29 @@
+@import '_variables';
+@import '_mixins';
+
+.root {
+  display: flex;
+}
+
+my-global-icon {
+  height: 28px;
+  width: 28px;
+  margin-left: 10px;
+  cursor: pointer;
+
+  &:hover {
+    color: pvar(--mainHoverColor);
+  }
+
+  &[iconName=search] {
+    color: pvar(--mainForegroundColor);
+  }
+
+  &[iconName=cross] {
+    color: pvar(--mainForegroundColor);
+  }
+}
+
+input {
+  @include peertube-input-text(200px);
+}

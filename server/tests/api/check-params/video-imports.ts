@@ -24,6 +24,7 @@ import {
 } from '../../../../shared/extra-utils/requests/check-api-params'
 import { getMagnetURI, getGoodVideoUrl } from '../../../../shared/extra-utils/videos/video-imports'
 import { VideoPrivacy } from '../../../../shared/models/videos/video-privacy.enum'
+import { HttpStatusCode } from '../../../../shared/core-utils/miscs/http-error-codes'
 
 describe('Test video imports API validator', function () {
   const path = '/api/v1/videos/imports'
@@ -67,7 +68,7 @@ describe('Test video imports API validator', function () {
     })
 
     it('Should success with the correct parameters', async function () {
-      await makeGetRequest({ url: server.url, path: myPath, statusCodeExpected: 200, token: server.accessToken })
+      await makeGetRequest({ url: server.url, path: myPath, statusCodeExpected: HttpStatusCode.OK_200, token: server.accessToken })
     })
   })
 
@@ -100,7 +101,13 @@ describe('Test video imports API validator', function () {
 
     it('Should fail without a target url', async function () {
       const fields = omit(baseCorrectParams, 'targetUrl')
-      await makePostBodyRequest({ url: server.url, path, token: server.accessToken, fields, statusCodeExpected: 400 })
+      await makePostBodyRequest({
+        url: server.url,
+        path,
+        token: server.accessToken,
+        fields,
+        statusCodeExpected: HttpStatusCode.BAD_REQUEST_400
+      })
     })
 
     it('Should fail with a bad target url', async function () {
@@ -194,7 +201,7 @@ describe('Test video imports API validator', function () {
     it('Should fail with an incorrect thumbnail file', async function () {
       const fields = baseCorrectParams
       const attaches = {
-        thumbnailfile: join(__dirname, '..', '..', 'fixtures', 'avatar.png')
+        thumbnailfile: join(__dirname, '..', '..', 'fixtures', 'video_short.mp4')
       }
 
       await makeUploadRequest({ url: server.url, path, token: server.accessToken, fields, attaches })
@@ -203,7 +210,7 @@ describe('Test video imports API validator', function () {
     it('Should fail with a big thumbnail file', async function () {
       const fields = baseCorrectParams
       const attaches = {
-        thumbnailfile: join(__dirname, '..', '..', 'fixtures', 'avatar-big.png')
+        thumbnailfile: join(__dirname, '..', '..', 'fixtures', 'preview-big.png')
       }
 
       await makeUploadRequest({ url: server.url, path, token: server.accessToken, fields, attaches })
@@ -212,7 +219,7 @@ describe('Test video imports API validator', function () {
     it('Should fail with an incorrect preview file', async function () {
       const fields = baseCorrectParams
       const attaches = {
-        previewfile: join(__dirname, '..', '..', 'fixtures', 'avatar.png')
+        previewfile: join(__dirname, '..', '..', 'fixtures', 'video_short.mp4')
       }
 
       await makeUploadRequest({ url: server.url, path, token: server.accessToken, fields, attaches })
@@ -221,7 +228,7 @@ describe('Test video imports API validator', function () {
     it('Should fail with a big preview file', async function () {
       const fields = baseCorrectParams
       const attaches = {
-        previewfile: join(__dirname, '..', '..', 'fixtures', 'avatar-big.png')
+        previewfile: join(__dirname, '..', '..', 'fixtures', 'preview-big.png')
       }
 
       await makeUploadRequest({ url: server.url, path, token: server.accessToken, fields, attaches })
@@ -251,7 +258,7 @@ describe('Test video imports API validator', function () {
         path,
         token: server.accessToken,
         fields: baseCorrectParams,
-        statusCodeExpected: 200
+        statusCodeExpected: HttpStatusCode.OK_200
       })
     })
 
@@ -274,7 +281,7 @@ describe('Test video imports API validator', function () {
         path,
         token: server.accessToken,
         fields: baseCorrectParams,
-        statusCodeExpected: 409
+        statusCodeExpected: HttpStatusCode.CONFLICT_409
       })
     })
 
@@ -295,14 +302,27 @@ describe('Test video imports API validator', function () {
       let fields = omit(baseCorrectParams, 'targetUrl')
       fields = immutableAssign(fields, { magnetUri: getMagnetURI() })
 
-      await makePostBodyRequest({ url: server.url, path, token: server.accessToken, fields, statusCodeExpected: 409 })
+      await makePostBodyRequest({
+        url: server.url,
+        path,
+        token: server.accessToken,
+        fields,
+        statusCodeExpected: HttpStatusCode.CONFLICT_409
+      })
 
       fields = omit(fields, 'magnetUri')
       const attaches = {
         torrentfile: join(__dirname, '..', '..', 'fixtures', 'video-720p.torrent')
       }
 
-      await makeUploadRequest({ url: server.url, path, token: server.accessToken, fields, attaches, statusCodeExpected: 409 })
+      await makeUploadRequest({
+        url: server.url,
+        path,
+        token: server.accessToken,
+        fields,
+        attaches,
+        statusCodeExpected: HttpStatusCode.CONFLICT_409
+      })
     })
   })
 
